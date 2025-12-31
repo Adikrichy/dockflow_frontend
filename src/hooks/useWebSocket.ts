@@ -60,8 +60,8 @@ export const useWebSocket = () => {
     websocketService.unsubscribeFromChannel(channelId);
   }, []);
 
-  const sendMessage = useCallback((channelId: number, content: string) => {
-    websocketService.sendMessage(channelId, content);
+  const sendMessage = useCallback((channelId: number, content: string, senderId?: number) => {
+    websocketService.sendMessage(channelId, content, senderId);
   }, []);
 
   // Use empty stubs for join/leave if not needed by STOMP currently, or update signatures

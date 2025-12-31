@@ -14,6 +14,7 @@ const Navigation = ({ children }: NavigationProps) => {
     { name: 'Documents', href: '/documents', current: location.pathname === '/documents' },
     { name: 'Workflow', href: '/workflow', current: location.pathname === '/workflow' },
     { name: 'Company', href: '/company', current: location.pathname === '/company' },
+    { name: 'Chat', href: '/chat', current: location.pathname === '/chat' },
   ];
 
   const handleLogout = async () => {
@@ -33,11 +34,10 @@ const Navigation = ({ children }: NavigationProps) => {
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`pb-2 ${
-                      item.current
+                    className={`pb-2 ${item.current
                         ? 'text-blue-600 border-b-2 border-blue-600'
                         : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                      }`}
                   >
                     {item.name}
                   </Link>

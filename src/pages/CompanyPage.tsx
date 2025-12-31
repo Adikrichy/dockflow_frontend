@@ -26,16 +26,25 @@ const CompanyPage = () => {
     loadCompanyData();
   }, []);
 
-  const loadCompanyData = async () => {
+  const loadCompanyData = async (retryCount = 0) => {
     try {
-      const [currentCompany, availableRoles] = await Promise.all([
-        companyService.getCurrentCompany(),
-        companyService.getAllRoles(),
-      ]);
+      const currentCompany = await companyService.getCurrentCompany();
       setCompany(currentCompany);
-      setRoles(availableRoles);
-    } catch (error) {
-      console.error('Failed to load company data:', error);
+
+      if (currentCompany) {
+        const availableRoles = await companyService.getAllRoles();
+        setRoles(availableRoles);
+      } else {
+        setRoles([]);
+      }
+    } catch (error: any) {
+      if (retryCount < 3 && (error.response?.status === 404 || error.response?.status === 401)) {
+        // Если нет компании — подождём и попробуем снова
+        setTimeout(() => loadCompanyData(retryCount + 1), 1000);
+      } else {
+        console.error('Failed to load company data:', error);
+        setCompany(null);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -63,13 +72,24 @@ const CompanyPage = () => {
     setError('');
     setIsSubmitting(true);
     try {
+      // 1. Присоединяемся
       await companyService.joinCompany(companyId);
+
+      // 2. Входим — это установит куку jwtWithCompany
       await companyService.enterCompany(companyId);
+
+      // 3. НЕ вызываем refreshAuth() — он сломает куку!
+
+      // 4. Перезагружаем данные компании — теперь запросы пойдут с новой кукой
       await loadCompanyData();
+
       setShowJoinForm(false);
       setJoinCompanyId('');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to join company');
+      setError(
+        err.response?.data?.message ||
+        'Failed to join or enter company. Try refreshing the page after a few seconds.'
+      );
     } finally {
       setIsSubmitting(false);
     }

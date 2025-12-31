@@ -131,13 +131,13 @@ class WebSocketService {
     }
   }
 
-  sendMessage(channelId: number, content: string) {
+  sendMessage(channelId: number, content: string, senderId?: number) {
     if (!this.client || !this.connected) return;
 
     // Backend Controller: @MessageMapping("/chat.send/channelId/{channelId}")
     this.client.publish({
       destination: `/app/chat.send/channelId/${channelId}`,
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ content})
     });
   }
 
