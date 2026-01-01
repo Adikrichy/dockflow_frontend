@@ -246,12 +246,12 @@ const WorkflowEditor = ({
         <Box sx={{
             display: 'flex',
             flexDirection: 'column',
-            height: '85vh',
+            height: '100%',
             bgcolor: '#0f172a', // Slate 900
             color: 'white',
-            borderRadius: '16px',
+            borderRadius: 0,
             overflow: 'hidden',
-            border: '1px solid rgba(255, 255, 255, 0.05)'
+            border: 'none'
         }}>
             {/* Top Toolbar */}
             <Box sx={{

@@ -82,4 +82,22 @@ export const workflowService = {
     const response = await api.get<TaskResponse[]>(`/workflow/document/${documentId}/tasks`);
     return response.data;
   },
+
+  // Kanban & Management
+  async getCompanyTasks(companyId: number): Promise<TaskResponse[]> {
+    const response = await api.get<TaskResponse[]>(`/workflow/company/${companyId}/tasks`);
+    return response.data;
+  },
+
+  async assignTask(taskId: number, userId: number): Promise<TaskResponse> {
+    const response = await api.post<TaskResponse>(`/workflow/task/${taskId}/assign/${userId}`);
+    return response.data;
+  },
+
+  async updateTaskStatus(taskId: number, status: string): Promise<TaskResponse> {
+    const response = await api.put<TaskResponse>(`/workflow/task/${taskId}/status`, null, {
+      params: { status }
+    });
+    return response.data;
+  },
 };

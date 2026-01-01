@@ -28,6 +28,12 @@ export const useWorkflow = () => {
         enabled: !!instanceId,
     });
 
+    const useCompanyTasks = (companyId: number | null) => useQuery({
+        queryKey: ['workflow', 'tasks', 'company', companyId],
+        queryFn: () => workflowService.getCompanyTasks(companyId!),
+        enabled: !!companyId,
+    });
+
     // Mutations
     const approveTaskMutation = useMutation({
         mutationFn: ({ taskId, request }: { taskId: number; request: TaskApprovalRequest }) =>
@@ -67,12 +73,39 @@ export const useWorkflow = () => {
         },
     });
 
+    const assignTaskMutation = useMutation({
+        mutationFn: ({ taskId, userId }: { taskId: number; userId: number }) =>
+            workflowService.assignTask(taskId, userId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'tasks'] });
+            toast.success('Task assigned successfully');
+        },
+        onError: () => {
+            toast.error('Failed to assign task');
+        },
+    });
+
+    const updateTaskStatusMutation = useMutation({
+        mutationFn: ({ taskId, status }: { taskId: number; status: string }) =>
+            workflowService.updateTaskStatus(taskId, status),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'tasks'] });
+            toast.success('Task status updated');
+        },
+        onError: () => {
+            toast.error('Failed to update task status');
+        },
+    });
+
     return {
         useMyTasks,
         useCompanyTemplates,
         useWorkflowAudit,
+        useCompanyTasks,
         approveTaskMutation,
         bulkApproveMutation,
         createTemplateMutation,
+        assignTaskMutation,
+        updateTaskStatusMutation,
     };
 };

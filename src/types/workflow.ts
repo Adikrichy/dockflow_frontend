@@ -13,7 +13,12 @@ export interface TaskResponse {
   stepOrder: number;
   requiredRoleName: string;
   requiredRoleLevel: number;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SKIPPED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
+  assignedTo?: {
+    id: number;
+    email: string;
+    fullName?: string;
+  };
   comment?: string;
   createdAt: string;
   completedAt?: string;

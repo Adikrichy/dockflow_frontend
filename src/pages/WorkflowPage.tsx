@@ -44,7 +44,7 @@ const WorkflowPage: React.FC = () => {
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
+  const [selectedInstanceId] = useState<number | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [comment, setComment] = useState('');
   const [pendingActionTask, setPendingActionTask] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null);
@@ -110,10 +110,6 @@ const WorkflowPage: React.FC = () => {
     console.log('Delete template', template.id);
   };
 
-  const handleViewAudit = (instanceId: number) => {
-    setSelectedInstanceId(instanceId);
-    setIsDetailsOpen(true);
-  };
 
   // Roles verification (role >= 60 for management)
   const roleLevel = (user as any)?.memberships?.[0]?.roleLevel || (user as any)?.role?.level || 0;
@@ -193,10 +189,6 @@ const WorkflowPage: React.FC = () => {
           <Typography color="textSecondary" sx={{ mb: 2 }}>
             Workflow instance history. (Search and pagination to be added)
           </Typography>
-          {/* Example of how to trigger history details */}
-          <Button variant="outlined" onClick={() => handleViewAudit(1)}>
-            View Sample Audit Log
-          </Button>
         </Box>
       )}
 
@@ -265,9 +257,24 @@ const WorkflowPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={isEditorOpen} onClose={() => setIsEditorOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Create New Workflow Template</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        fullScreen
+      >
+        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Create New Workflow Template
+          <IconButton
+            aria-label="close"
+            onClick={() => setIsEditorOpen(false)}
+            sx={{
+              color: (theme) => theme.palette.grey[500],
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
           <WorkflowEditor
             onSave={handleCreateTemplate}
             isLoading={createTemplateMutation.isPending}
