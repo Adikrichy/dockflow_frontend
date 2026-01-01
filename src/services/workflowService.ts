@@ -2,72 +2,84 @@ import { api } from './api';
 import type {
   WorkflowTemplate,
   WorkflowInstance,
-  WorkflowTask,
+  TaskResponse,
   CreateWorkflowTemplateRequest,
-  TaskActionRequest,
-  BulkTaskActionRequest,
-  WorkflowAuditEntry
+  TaskApprovalRequest,
+  BulkTaskRequest,
+  BulkOperationResponse,
+  WorkflowAuditLog,
 } from '../types/workflow';
 
 export const workflowService = {
   // Template Management
   async createTemplate(request: CreateWorkflowTemplateRequest): Promise<WorkflowTemplate> {
-    const response = await api.post('/workflow/template', request);
+    const response = await api.post<WorkflowTemplate>('/workflow/template', request);
     return response.data;
   },
 
   async getCompanyTemplates(companyId: number): Promise<WorkflowTemplate[]> {
-    const response = await api.get(`/workflow/company/${companyId}/templates`);
+    const response = await api.get<WorkflowTemplate[]>(`/workflow/company/${companyId}/templates`);
     return response.data;
   },
 
   async getTemplate(templateId: number): Promise<WorkflowTemplate> {
-    const response = await api.get(`/workflow/template/${templateId}`);
+    const response = await api.get<WorkflowTemplate>(`/workflow/template/${templateId}`);
     return response.data;
   },
 
   // Workflow Execution
   async startWorkflow(templateId: number, documentId: number): Promise<WorkflowInstance> {
-    const response = await api.post(`/workflow/${templateId}/start?documentId=${documentId}`);
+    const response = await api.post<WorkflowInstance>(`/workflow/${templateId}/start`, null, {
+      params: { documentId }
+    });
     return response.data;
   },
 
-  async getWorkflowInstance(workflowId: number): Promise<WorkflowInstance> {
-    const response = await api.get(`/workflow/instance/${workflowId}`);
+  async getWorkflowInstance(instanceId: number): Promise<WorkflowInstance> {
+    const response = await api.get<WorkflowInstance>(`/workflow/instance/${instanceId}`);
     return response.data;
   },
 
-  async getMyTasks(): Promise<WorkflowTask[]> {
-    const response = await api.get('/workflow/my-tasks');
+  async getMyTasks(): Promise<TaskResponse[]> {
+    const response = await api.get<TaskResponse[]>('/workflow/my-tasks');
     return response.data;
   },
 
   // Task Actions
-  async approveTask(taskId: number, request: TaskActionRequest = {}): Promise<void> {
-    await api.post(`/workflow/task/${taskId}/approve`, request);
-  },
-
-  async rejectTask(taskId: number, request: TaskActionRequest): Promise<void> {
-    await api.post(`/workflow/task/${taskId}/reject`, request);
-  },
-
-  // Bulk Operations
-  async bulkApproveTasks(request: BulkTaskActionRequest): Promise<void> {
-    await api.post('/workflow/tasks/bulk-approve', request);
-  },
-
-  async bulkRejectTasks(request: BulkTaskActionRequest): Promise<void> {
-    await api.post('/workflow/tasks/bulk-reject', request);
-  },
-
-  // Audit & History
-  async getWorkflowAudit(workflowId: number): Promise<WorkflowAuditEntry[]> {
-    const response = await api.get(`/workflow/instance/${workflowId}/audit`);
+  async approveTask(taskId: number, request: TaskApprovalRequest): Promise<TaskResponse> {
+    const response = await api.post<TaskResponse>(`/workflow/task/${taskId}/approve`, request);
     return response.data;
   },
 
-  async getDocumentTasks(documentId: number): Promise<WorkflowTask[]> {
-    const response = await api.get(`/workflow/document/${documentId}/tasks`);
+  async rejectTask(taskId: number, request: TaskApprovalRequest): Promise<TaskResponse> {
+    // Note: Backend might use /approve with a negative status or a dedicated /reject endpoint.
+    // Based on WorkflowController, we have /tasks/bulk-reject but not a single reject? 
+    // Wait, let me check the Controller again. 
+    // Bulk endpoints exist: /tasks/bulk-approve, /tasks/bulk-reject.
+    // Let's assume single reject is /task/{taskId}/reject if it's there, or we use bulk with one ID.
+    const response = await api.post<TaskResponse>(`/workflow/task/${taskId}/reject`, request);
+    return response.data;
+  },
+
+  // Bulk Operations
+  async bulkApproveTasks(request: BulkTaskRequest): Promise<BulkOperationResponse> {
+    const response = await api.post<BulkOperationResponse>('/workflow/tasks/bulk-approve', request);
+    return response.data;
+  },
+
+  async bulkRejectTasks(request: BulkTaskRequest): Promise<BulkOperationResponse> {
+    const response = await api.post<BulkOperationResponse>('/workflow/tasks/bulk-reject', request);
+    return response.data;
+  },
+
+  // Audit & History
+  async getWorkflowAudit(instanceId: number): Promise<WorkflowAuditLog[]> {
+    const response = await api.get<WorkflowAuditLog[]>(`/workflow/instance/${instanceId}/audit`);
+    return response.data;
+  },
+
+  async getDocumentTasks(documentId: number): Promise<TaskResponse[]> {
+    const response = await api.get<TaskResponse[]>(`/workflow/document/${documentId}/tasks`);
     return response.data;
   },
 };

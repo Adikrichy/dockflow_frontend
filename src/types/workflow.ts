@@ -1,64 +1,71 @@
 export interface WorkflowTemplate {
   id: number;
   name: string;
+  description: string;
+  stepsXml: string;
   companyId: number;
-  workflowXml: string;
-  createdBy: number;
   createdAt: string;
-  isActive: boolean;
+  updatedAt: string;
 }
 
-export interface WorkflowInstance {
+export interface TaskResponse {
   id: number;
-  templateId: number;
-  documentId: number;
-  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
-  startedAt: string;
-  completedAt?: string;
-  currentStep: number;
-}
-
-export interface WorkflowTask {
-  id: number;
-  workflowInstanceId: number;
   stepOrder: number;
   requiredRoleName: string;
   requiredRoleLevel: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SKIPPED';
-  assignedAt: string;
-  completedAt?: string;
-  assignedTo?: number;
   comment?: string;
+  createdAt: string;
+  completedAt?: string;
+  completedByName?: string;
+  // Added for UI needs (based on WorkflowPage usage)
   document: {
     id: number;
     filename: string;
     amount?: number;
-    priority?: string;
   };
+  workflowInstanceId: number;
+}
+
+export interface WorkflowInstance {
+  id: number;
+  documentId: number;
+  templateId: number;
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
+  startedAt: string;
+  completedAt?: string;
+  initiatedByName: string;
+  tasks: TaskResponse[];
+}
+
+export interface WorkflowAuditLog {
+  id: number;
+  actionType: string;
+  description: string;
+  performedBy: string; // email
+  createdAt: string;
+  metadata?: string;
+  ipAddress?: string;
 }
 
 export interface CreateWorkflowTemplateRequest {
   name: string;
+  description: string;
+  stepsXml: string;
   companyId: number;
-  workflowXml: string;
 }
 
-export interface TaskActionRequest {
+export interface TaskApprovalRequest {
   comment?: string;
 }
 
-export interface BulkTaskActionRequest {
+export interface BulkTaskRequest {
   taskIds: number[];
   comment?: string;
 }
 
-export interface WorkflowAuditEntry {
-  id: number;
-  workflowInstanceId: number;
-  taskId?: number;
-  action: string;
-  userId: number;
-  userName: string;
-  timestamp: string;
-  details?: string;
+export interface BulkOperationResponse {
+  successCount: number;
+  failureCount: number;
+  results: Record<number, string>; // mapping taskId to status/error
 }
