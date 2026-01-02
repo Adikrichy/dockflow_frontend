@@ -90,6 +90,11 @@ export const authService = {
     await api.post('/auth/logout');
   },
 
+  async getMyContext() {
+    const response = await api.get('/auth/me');
+    return response.data; // { user, companies, currentCompany }
+  },
+
   async refresh(): Promise<AuthResponse> {
     const response = await api.post('/auth/refresh');
     return response.data;
@@ -118,9 +123,34 @@ export const authService = {
 };
 
 export const companyService = {
-  async createCompany(companyData: CreateCompanyRequest): Promise<Company> {
+  async createCompany(companyData: CreateCompanyRequest): Promise<{
+    company: Company;
+    keyFile: Blob;
+  }> {
     const response = await api.post('/company/create', companyData);
-    return response.data.company;
+
+    // Response now contains CreateCompanyResponse with company and keyFileBase64
+    const createResponse = response.data;
+    
+    // Convert base64 key file to Blob
+    const keyFileBase64 = createResponse.keyFileBase64;
+    if (!keyFileBase64) {
+      throw new Error('Key file not found in response');
+    }
+
+    // Convert base64 string to Blob
+    const byteCharacters = atob(keyFileBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const keyFile = new Blob([byteArray], { type: 'application/x-pkcs12' });
+
+    return {
+      company: createResponse.company,
+      keyFile: keyFile
+    };
   },
 
   async getAllRoles(): Promise<Role[]> {
@@ -137,12 +167,26 @@ export const companyService = {
     }
   },
 
-  async enterCompany(companyId: number): Promise<void> {
-    await api.post(`/company/${companyId}/enter`);
+  async enterCompany(companyId: number, keyFile: File): Promise<void> {
+    const formData = new FormData();
+    formData.append('keyFile', keyFile);
+
+    await api.post(`/company/${companyId}/enter`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   },
 
-  async joinCompany(companyId: number): Promise<void> {
-    await api.post(`/company/join/${companyId}`);
+  async joinCompany(companyId: number): Promise<{
+    keyFile: Blob;
+  }> {
+    const response = await api.post(`/company/join/${companyId}`, null, {
+      responseType: 'blob'
+    });
+    return {
+      keyFile: response.data
+    };
   },
 
   async exitCompany(): Promise<void> {

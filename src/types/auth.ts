@@ -3,9 +3,16 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  company?: string;
-  companyRole?: string;
-  lastLogin?: string;
+  userType: string;
+  companyRole: string | null;
+}
+
+export interface CompanyMembership {
+  companyId: number;
+  companyName: string;
+  description: string | null;
+  roleName: string;
+  roleLevel: number;
 }
 
 export interface LoginRequest {

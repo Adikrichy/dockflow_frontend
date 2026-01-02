@@ -1,25 +1,49 @@
+// src/hooks/useAuth.tsx
+
 import { useState, useEffect, createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
-import type { User } from '../types/auth';
 import { authService } from '../services/api';
 
-interface AuthContextType {
+// Типы для контекста
+export interface CompanyMembership {
+  companyId: number;
+  companyName: string;
+  description: string | null;
+  roleName: string;
+  roleLevel: number;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  userType: string;
+  companyRole: string | null;
+}
+
+interface AuthState {
   user: User | null;
+  companies: CompanyMembership[];
+  currentCompany: CompanyMembership | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
-  verifyEmail: (email: string, verificationCode: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerificationCode: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
@@ -30,79 +54,83 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    companies: [],
+    currentCompany: null,
+    isAuthenticated: false,
+    isLoading: true,
+  });
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    console.log('AuthProvider: checkAuthStatus started');
+  // Загружаем полный контекст из /api/auth/me
+  const loadContext = async () => {
     try {
-      const response = await authService.refresh();
-      console.log('AuthProvider: refresh success', response.user);
-      setUser(response.user);
+      setState(prev => ({ ...prev, isLoading: true }));
+      const response = await authService.getMyContext();
+
+      setState({
+        user: response.user,
+        companies: response.companies || [],
+        currentCompany: response.currentCompany || null,
+        isAuthenticated: true,
+        isLoading: false,
+      });
     } catch (error) {
-      console.error('AuthProvider: refresh failed', error);
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-      console.log('AuthProvider: isLoading set to false');
+      console.log('User not authenticated:', error);
+      setState({
+        user: null,
+        companies: [],
+        currentCompany: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
     }
   };
 
+  // При загрузке приложения
+  useEffect(() => {
+    loadContext();
+  }, []);
+
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
     try {
-      const response = await authService.login({ email, password });
-      setUser(response.user);
+      await authService.login({ email, password });
+      await loadContext();
     } catch (error) {
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const register = async (email: string, password: string, firstName: string, lastName: string) => {
-    setIsLoading(true);
     try {
-      const response = await authService.register({
-        email,
-        password,
-        firstName,
-        lastName,
-      });
-      setUser(response.user);
+      await authService.register({ email, password, firstName, lastName });
+      await loadContext();
     } catch (error) {
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const logout = async () => {
     try {
       await authService.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
     } finally {
-      setUser(null);
+      setState({
+        user: null,
+        companies: [],
+        currentCompany: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
     }
   };
 
   const refreshAuth = async () => {
-    try {
-      const response = await authService.refresh();
-      setUser(response.user);
-    } catch (error) {
-      setUser(null);
-      throw error;
-    }
+    await loadContext();
   };
 
-  const verifyEmail = async (email: string, verificationCode: string) => {
-    await authService.verifyEmail(email, verificationCode);
+  const verifyEmail = async (email: string, code: string) => {
+    await authService.verifyEmail(email, code);
+    await loadContext();
   };
 
   const resendVerificationCode = async (email: string) => {
@@ -110,20 +138,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const value: AuthContextType = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
+    ...state,
     login,
     register,
     logout,
     refreshAuth,
     verifyEmail,
-    resendVerificationCode,  // ← Добавлено здесь
+    resendVerificationCode,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
