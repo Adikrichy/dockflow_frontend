@@ -69,6 +69,8 @@ const WorkflowEditor = ({
     const [description, setDescription] = useState(initialDescription);
     const [activeTab, setActiveTab] = useState(0);
     const [xml, setXml] = useState(initialXml || `<workflow>\n  <step order="1" roleName="Manager" roleLevel="60" action="approve"/>\n</workflow>`);
+    const [roles, setRoles] = useState<Array<{id: number, name: string, level: number}>>([]);
+    const [rolesLoading, setRolesLoading] = useState(true);
 
     // React Flow state
     const [nodes, setNodes] = useState<Node[]>([]);
@@ -237,6 +239,29 @@ const WorkflowEditor = ({
         if (activeTab === 0) syncFlowToXml();
         onSave({ name, description, stepsXml: xml });
     };
+
+  useEffect(() => {
+  const fetchRoles = async () => {
+    try {
+      setRolesLoading(true);
+      const response = await fetch('/api/company/getAllRoles', {
+        credentials: 'include'  // Важно, чтобы куки с токеном ушли
+      });
+      if (response.ok) {
+        const data = await response.json();  // массив вроде [{id, name, level, isSystem}]
+        setRoles(data);
+      } else {
+        console.error('Ошибка загрузки ролей');
+      }
+    } catch (err) {
+      console.error('Ошибка сети при загрузке ролей', err);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
+  fetchRoles();
+}, []);
 
     useEffect(() => {
         if (activeTab === 0) syncFlowToXml();
@@ -474,74 +499,119 @@ const WorkflowEditor = ({
                                 </Box>
 
                                 <Box>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>TARGET ROLE</Typography>
-                                    <TextField
-                                        value={(selectedNode?.data as any)?.roleName || ''}
-                                        onChange={(e) => handleNodeDataChange('roleName', e.target.value)}
-                                        fullWidth
-                                        variant="filled"
-                                        sx={{
-                                            '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' }
-                                        }}
-                                    />
-                                </Box>
+    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>
+        TARGET ROLE
+    </Typography>
+    <FormControl fullWidth variant="filled" sx={{
+        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
+    }}>
+        <Select
+            value={(selectedNode?.data as any)?.roleName || ''}
+            onChange={(e) => {
+                const selectedRole = roles.find(r => r.name === e.target.value);
+                if (selectedRole) {
+                    handleNodeDataChange('roleName', selectedRole.name);
+                    handleNodeDataChange('roleLevel', selectedRole.level);  // Автоматически подставляем level
+                }
+            }}
+            disabled={rolesLoading || roles.length === 0}
+            displayEmpty
+        >
+            {rolesLoading ? (
+                <MenuItem disabled>Загрузка ролей...</MenuItem>
+            ) : roles.length === 0 ? (
+                <MenuItem disabled>Нет ролей в компании</MenuItem>
+            ) : (
+                roles.map((role) => (
+                    <MenuItem key={role.id} value={role.name}>
+                        {role.name} (Level: {role.level})
+                    </MenuItem>
+                ))
+            )}
+        </Select>
+    </FormControl>
+</Box>
 
                                 <Box>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>ACCESS LEVEL</Typography>
-                                    <TextField
-                                        type="number"
-                                        value={(selectedNode?.data as any)?.roleLevel || 60}
-                                        onChange={(e) => handleNodeDataChange('roleLevel', parseInt(e.target.value))}
-                                        fullWidth
-                                        variant="filled"
-                                        sx={{
-                                            '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' }
-                                        }}
-                                    />
-                                </Box>
+    <Typography 
+        variant="caption" 
+        sx={{ 
+            color: 'rgba(255, 255, 255, 0.3)', 
+            fontWeight: 700, 
+            mb: 1, 
+            display: 'block' 
+        }}
+    >
+        ACCESS LEVEL
+    </Typography>
+    <TextField
+        type="number"
+        value={(selectedNode?.data as any)?.roleLevel || 60}
+        fullWidth
+        variant="filled"
+        InputProps={{
+            readOnly: true, // Запрещаем редактирование
+        }}
+        sx={{
+            '& .MuiFilledInput-root': { 
+                bgcolor: 'rgba(255, 255, 255, 0.03)', 
+                borderRadius: '8px', 
+                border: '1px solid rgba(255, 255, 255, 0.05)', 
+                color: 'white' 
+            },
+            '& .MuiFilledInput-input': {
+                cursor: 'default', // Убираем курсор ввода
+                color: 'rgba(255, 255, 255, 0.9)',
+            },
+            '& .MuiFilledInput-root.Mui-disabled': {
+                bgcolor: 'rgba(255, 255, 255, 0.05)',
+            }
+        }}
+    />
+</Box>
 
-                                <Box>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>REQUIRED ACTION</Typography>
-                                    <FormControl fullWidth variant="filled" sx={{
-                                        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
-                                        '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.4)' }
-                                    }}>
-                                        <Select
-                                            value={(selectedNode?.data as any)?.action || 'approve'}
-                                            onChange={(e) => handleNodeDataChange('action', e.target.value)}
-                                            disableUnderline
-                                        >
-                                            <MenuItem value="approve">Approve</MenuItem>
-                                            <MenuItem value="sign">Digital Signature</MenuItem>
-                                            <MenuItem value="review">Internal Review</MenuItem>
-                                            <MenuItem value="publish">Final Publish</MenuItem>
-                                        </Select>
-                                    </FormControl>
-                                </Box>
+<Box>
+    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>REQUIRED ACTION</Typography>
+    <FormControl fullWidth variant="filled" sx={{
+        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
+        '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.4)' }
+    }}>
+        <Select
+            value={(selectedNode?.data as any)?.action || 'approve'}
+            onChange={(e) => handleNodeDataChange('action', e.target.value)}
+            disableUnderline
+        >
+            <MenuItem value="approve">Approve</MenuItem>
+            <MenuItem value="sign">Digital Signature</MenuItem>
+            <MenuItem value="review">Internal Review</MenuItem>
+            <MenuItem value="publish">Final Publish</MenuItem>
+        </Select>
+    </FormControl>
+</Box>
 
-                                <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.05)' }} />
+<Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.05)' }} />
 
-                                <Button
-                                    variant="outlined"
-                                    fullWidth
-                                    onClick={() => selectedNode && deleteNode(selectedNode.id)}
-                                    sx={{
-                                        color: '#ef4444',
-                                        borderColor: 'rgba(239, 68, 68, 0.2)',
-                                        '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.05)', borderColor: '#ef4444' },
-                                        textTransform: 'none',
-                                        py: 1.5,
-                                        borderRadius: '10px'
-                                    }}
-                                >
-                                    Remove Action Block
-                                </Button>
-                            </Stack>
-                        </Box>
-                    </Drawer>
-                </Box>
-            </Box>
-        </Box>
+<Button
+    variant="outlined"
+    fullWidth
+    onClick={() => selectedNode && deleteNode(selectedNode.id)}
+    sx={{
+        color: '#ef4444',
+        borderColor: 'rgba(239, 68, 68, 0.2)',
+        '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.05)', borderColor: '#ef4444' },
+        textTransform: 'none',
+        py: 1.5,
+        borderRadius: '10px'
+    }}
+>
+    Remove Action Block
+</Button>
+</Stack>
+</Box>
+</Drawer>
+</Box>
+</Box>
+</Box>
     );
 };
 

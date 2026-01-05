@@ -148,12 +148,12 @@ const CompanyPage = () => {
   };
 
   if (authLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  return (
+    <div className="flex justify-center items-center h-screen">
+      <LoadingSpinner />
+    </div>
+  );
+}
 
   return (
     <Navigation>
@@ -162,8 +162,9 @@ const CompanyPage = () => {
           Company Management
         </h1>
 
-        {companies.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-6 text-center">
+        {/* Показываем сообщение о том, что пользователь не в компании, только если нет компаний вообще */}
+        {!currentCompany && companies.length === 0 && (
+          <div className="bg-white rounded-lg shadow p-6 text-center mb-6">
             <p className="text-gray-600 mb-4">
               You are not currently a member of any company.
             </p>
@@ -182,46 +183,51 @@ const CompanyPage = () => {
               </button>
             </div>
           </div>
-        ) : (
-          <>
-            {currentCompany && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h2 className="text-2xl font-bold text-green-900">
-                      Current Company: {currentCompany.companyName}
-                    </h2>
-                    {currentCompany.description && (
-                      <p className="text-green-700 mt-2">
-                        {currentCompany.description}
-                      </p>
-                    )}
-                    <p className="text-green-700 mt-4">
-                      Your role:{' '}
-                      <span className="font-semibold">
-                        {currentCompany.roleName}
-                      </span>{' '}
-                      (Level {currentCompany.roleLevel})
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleExitCompany}
-                    className="btn-danger"
-                  >
-                    Exit Company
-                  </button>
-                </div>
-              </div>
-            )}
+        )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-              <p className="text-blue-900 mb-4 text-center">
-                {currentCompany 
-                  ? `You are a member of ${companies.length} company(ies). Select another to switch:`
-                  : `You are a member of ${companies.length} company(ies). Select one to enter:`}
-              </p>
-              <div className="space-y-3">
-                {companies.map((company) => {
+        {/* Показываем текущую компанию только если она существует */}
+        {currentCompany && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold text-green-900">
+                  Current Company: {currentCompany.companyName}
+                </h2>
+                {currentCompany.description && (
+                  <p className="text-green-700 mt-2">
+                    {currentCompany.description}
+                  </p>
+                )}
+                <p className="text-green-700 mt-4">
+                  Your role:{' '}
+                  <span className="font-semibold">
+                    {currentCompany.roleName}
+                  </span>{' '}
+                  (Level {currentCompany.roleLevel})
+                </p>
+              </div>
+              <button
+                onClick={handleExitCompany}
+                className="btn-danger"
+              >
+                Exit Company
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Показываем список компаний, если они есть */}
+        {companies.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <p className="text-blue-900 mb-4 text-center">
+              {currentCompany 
+                ? `You are a member of ${companies.length} company(ies). Select another to switch:`
+                : `You are a member of ${companies.length} company(ies). Select one to enter:`}
+            </p>
+            <div className="space-y-3">
+              {companies
+                .filter(company => !currentCompany || company.companyId !== currentCompany.companyId)
+                .map((company) => {
                   const isCurrent = currentCompany?.companyId === company.companyId;
                   return (
                     <div
@@ -257,31 +263,32 @@ const CompanyPage = () => {
                           onClick={() => handleEnterCompanyClick(company.companyId)}
                           className="btn-primary"
                         >
-                          Enter Company
+                          {currentCompany ? "Switch Company" : "Enter Company"}
                         </button>
                       )}
                     </div>
                   );
                 })}
-              </div>
             </div>
+          </div>
+        )}
 
-            {/* Show create/join buttons */}
-            <div className="text-center space-x-4 mb-6">
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="btn-primary"
-              >
-                Create New Company
-              </button>
-              <button
-                onClick={() => setShowJoinForm(true)}
-                className="btn-secondary"
-              >
-                Join Existing Company
-              </button>
-            </div>
-          </>
+        {/* Кнопки Create/Join всегда видны, кроме случая когда нет компаний и нет currentCompany (там уже есть кнопки вверху) */}
+        {(!currentCompany && companies.length === 0) ? null : (
+          <div className="text-center space-x-4 mb-6">
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="btn-primary"
+            >
+              Create New Company
+            </button>
+            <button
+              onClick={() => setShowJoinForm(true)}
+              className="btn-secondary"
+            >
+              Join Existing Company
+            </button>
+          </div>
         )}
 
         <div className="bg-white rounded-lg shadow p-6">
@@ -312,6 +319,7 @@ const CompanyPage = () => {
           </div>
         </div>
 
+        {/* Модальные окна остаются без изменений */}
         <Modal isOpen={showCreateForm} onClose={() => setShowCreateForm(false)} title="Create New Company">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
@@ -445,6 +453,5 @@ const CompanyPage = () => {
       </div>
     </Navigation>
   );
-};
-
+}
 export default CompanyPage;

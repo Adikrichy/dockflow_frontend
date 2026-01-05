@@ -47,6 +47,18 @@ export const useWorkflow = () => {
         },
     });
 
+    const rejectTaskMutation = useMutation({
+        mutationFn: ({ taskId, request }: { taskId: number; request: TaskApprovalRequest }) =>
+            workflowService.rejectTask(taskId, request),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'my-tasks'] });
+            toast.success('Task rejected successfully');
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to reject task');
+        },
+    });
+
     const bulkApproveMutation = useMutation({
         mutationFn: (request: BulkTaskRequest) => workflowService.bulkApproveTasks(request),
         onSuccess: (response) => {
@@ -85,6 +97,13 @@ export const useWorkflow = () => {
         },
     });
 
+    // В раздел Queries (после других useQuery хуков)
+    const useCompanyDocuments = () => useQuery({
+        queryKey: ['companyDocuments'],
+        queryFn: () => workflowService.getCompanyDocuments(),
+    });
+
+
     const updateTaskStatusMutation = useMutation({
         mutationFn: ({ taskId, status }: { taskId: number; status: string }) =>
             workflowService.updateTaskStatus(taskId, status),
@@ -103,9 +122,11 @@ export const useWorkflow = () => {
         useWorkflowAudit,
         useCompanyTasks,
         approveTaskMutation,
+        rejectTaskMutation,
         bulkApproveMutation,
         createTemplateMutation,
         assignTaskMutation,
         updateTaskStatusMutation,
+        useCompanyDocuments
     };
 };

@@ -89,6 +89,12 @@ export const workflowService = {
     return response.data;
   },
 
+  // В файле workflowService.ts добавь:
+  getCompanyDocuments: async () => {
+    const response = await api.get(`/documents/user`);
+    return response.data;
+  },
+
   async assignTask(taskId: number, userId: number): Promise<TaskResponse> {
     const response = await api.post<TaskResponse>(`/workflow/task/${taskId}/assign/${userId}`);
     return response.data;

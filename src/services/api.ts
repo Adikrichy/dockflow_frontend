@@ -68,7 +68,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 &&
       !originalRequest.url?.includes('/auth/refresh') &&
       !originalRequest.url?.includes('/auth/login')) {
-      window.location.href = '/login';
+      //window.location.href = '/login';
     }
     return Promise.reject(error);
   }
