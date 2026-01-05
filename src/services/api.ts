@@ -120,7 +120,19 @@ export const authService = {
   async resetPassword(token: string, newPassword: string): Promise<void> {
     await api.post('/auth/reset-password', { token, newPassword });
   },
+
+  async updateRole(roleId: number, data: { roleName: string; level: number }) {
+  const response = await api.put(`/company/roles/${roleId}`, data);
+  return response.data;
+  },
+
+  async deleteRole(roleId: number) {
+    const response = await api.delete(`/company/roles/${roleId}`);
+    return response.data;
+  },
 };
+
+
 
 export const companyService = {
   async createCompany(companyData: CreateCompanyRequest): Promise<{
@@ -152,17 +164,12 @@ export const companyService = {
       keyFile: keyFile
     };
   },
-
-  async getAllRoles(): Promise<Role[]> {
-    const response = await api.get('/company/getAllRoles');
-    return response.data;
-  },
-
   async getCurrentCompany(): Promise<Company | null> {
     try {
       const response = await api.get('/company/current');
       return response.data;
     } catch (error) {
+      console.error('Error getting current company:', error);
       return null;
     }
   },
@@ -195,6 +202,30 @@ export const companyService = {
 
   async getCompanyMembers(): Promise<any[]> {
     const response = await api.get('/company/members');
+    return response.data;
+  },
+
+  // Role management
+  async createRole(roleData: {
+    roleName: string;
+    level: number;
+  }): Promise<{
+    id: number;
+    roleName: string;
+    level: number;
+    isSystem: boolean;
+  }> {
+    const response = await api.post('/company/roles', roleData);
+    return response.data;
+  },
+
+  async getAllRoles(): Promise<{
+    id: number;
+    roleName: string;
+    level: number;
+    isSystem: boolean;
+  }[]> {
+    const response = await api.get('/company/getAllRoles');
     return response.data;
   }
 };

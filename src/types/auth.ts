@@ -60,3 +60,15 @@ export interface CreateCompanyRequest {
   description?: string;
   useDefaultRoles?: boolean;
 }
+
+export interface CreateRoleRequest {
+  roleName: string;
+  level: number;
+}
+
+export interface CreateRoleResponse {
+  id: number;
+  roleName: string;
+  level: number;
+  isSystem: boolean;
+}

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { companyService } from '../services/api';
+import { companyService } from '../services/companyService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Navigation from '../components/Navigation';
 import Modal from '../components/Modal';
@@ -12,11 +12,14 @@ const CompanyPage = () => {
     currentCompany,
     isLoading: authLoading,
     refreshAuth,
+    user
   } = useAuth();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [showKeyUploadModal, setShowKeyUploadModal] = useState(false);
+  const [showRoleManagement, setShowRoleManagement] = useState(false);
+  const [showCreateRole, setShowCreateRole] = useState(false);
   const [selectedCompanyForKey, setSelectedCompanyForKey] = useState<{
     companyId: number;
     companyName: string;
@@ -26,9 +29,17 @@ const CompanyPage = () => {
     description: '',
     useDefaultRoles: true,
   });
+  const [roleFormData, setRoleFormData] = useState({
+    roleName: '',
+    level: 50,
+  });
   const [joinCompanyId, setJoinCompanyId] = useState('');
+  const [roles, setRoles] = useState<any[]>([]);
+  const [companyMembers, setCompanyMembers] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showEditRole, setShowEditRole] = useState(false);
+  const [editingRole, setEditingRole] = useState<any | null>(null);
 
   const downloadKeyFile = (keyFile: Blob, companyId: number, companyName: string) => {
     const url = window.URL.createObjectURL(keyFile);
@@ -147,6 +158,94 @@ const CompanyPage = () => {
     }
   };
 
+  // Load roles and members when current company changes
+  useEffect(() => {
+    if (currentCompany) {
+      loadRolesAndMembers();
+    }
+  }, [currentCompany]);
+
+  const loadRolesAndMembers = async () => {
+    if (!currentCompany) return;
+    
+    try {
+      const [rolesData, membersData] = await Promise.all([
+        companyService.getAllRoles(),
+        companyService.getCompanyMembers()
+      ]);
+      setRoles(rolesData);
+      setCompanyMembers(membersData);
+    } catch (err) {
+      console.error('Failed to load roles and members:', err);
+    }
+  };
+
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      await companyService.createRole(roleFormData);
+      setShowCreateRole(false);
+      setRoleFormData({ roleName: '', level: 50 });
+      await loadRolesAndMembers(); // Reload roles
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create role');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditRole = (role: any) => {
+  setEditingRole(role);
+  setRoleFormData({
+    roleName: role.name,
+    level: role.level,
+  });
+  setShowEditRole(true);
+};
+
+const handleUpdateRole = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingRole) return;
+
+  setError('');
+  setIsSubmitting(true);
+
+  try {
+    await companyService.updateRole(editingRole.id, roleFormData); // ← реализуй этот метод в companyService
+    setShowEditRole(false);
+    setEditingRole(null);
+    setRoleFormData({ roleName: '', level: 50 });
+    await loadRolesAndMembers();
+  } catch (err: any) {
+    setError(err.response?.data?.message || 'Failed to update role');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+const handleDeleteRole = async () => {
+  if (!editingRole || editingRole.isSystem) return;
+
+  if (!confirm(`Are you sure you want to delete the role "${editingRole.name}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  setIsSubmitting(true);
+  try {
+    await companyService.deleteRole(editingRole.id); // ← реализуй этот метод в companyService
+    setShowEditRole(false);
+    setEditingRole(null);
+    await loadRolesAndMembers();
+  } catch (err: any) {
+    setError(err.response?.data?.message || 'Failed to delete role');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
   if (authLoading) {
   return (
     <div className="flex justify-center items-center h-screen">
@@ -206,12 +305,27 @@ const CompanyPage = () => {
                   (Level {currentCompany.roleLevel})
                 </p>
               </div>
-              <button
-                onClick={handleExitCompany}
-                className="btn-danger"
-              >
-                Exit Company
-              </button>
+              <div className="flex space-x-2">
+                {currentCompany.roleLevel >= 100 && (
+                  <button
+                    onClick={() => {
+                      console.log('Manage Roles button clicked!');
+                      console.log('Current company role level:', currentCompany.roleLevel);
+                      console.log('Setting showRoleManagement to true');
+                      setShowRoleManagement(true);
+                    }}
+                    className="btn-secondary"
+                  >
+                    Manage Roles
+                  </button>
+                )}
+                <button
+                  onClick={handleExitCompany}
+                  className="btn-danger"
+                >
+                  Exit Company
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -450,6 +564,305 @@ const CompanyPage = () => {
           companyName={selectedCompanyForKey?.companyName || ''}
           isLoading={isSubmitting}
         />
+
+        {/* Главная модалка — Manage Roles */}
+<Modal 
+  isOpen={showRoleManagement} 
+  onClose={() => setShowRoleManagement(false)} 
+  title="Manage Roles"
+>
+  <div className="space-y-8">
+    {/* Заголовок и кнопка создания роли */}
+    <div className="flex justify-between items-center pb-4 border-b border-gray-200">
+      <h3 className="text-2xl font-bold text-gray-900">
+        Roles in <span className="text-blue-600">{currentCompany?.companyName}</span>
+      </h3>
+      <button
+        onClick={() => setShowCreateRole(true)}
+        className="btn-primary flex items-center gap-2 px-5 py-2.5"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Create New Role
+      </button>
+    </div>
+
+    {/* Список ролей */}
+    {roles.length === 0 ? (
+      <div className="text-center py-12">
+        <p className="text-gray-500 text-lg">No roles loaded.</p>
+      </div>
+    ) : (
+      <div className="grid gap-5">
+        {roles.map((role) => (
+  <div
+    key={role.id}
+    className={`flex justify-between items-center p-6 rounded-2xl border-2 shadow-lg transition-all hover:scale-[1.01] ${
+      role.isSystem 
+        ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200' 
+        : 'bg-gradient-to-r from-teal-50 to-cyan-50 border-teal-200'
+    }`}
+  >
+    <div>
+      <div className="text-xl font-bold text-gray-900 flex items-center gap-3">
+        {role.name}
+        {role.isSystem && (
+          <span className="text-xs bg-purple-600 text-white px-2.5 py-1 rounded-full font-medium">
+            System
+          </span>
+        )}
+      </div>
+      <div className="text-base text-gray-700 mt-2">
+        Permission Level: <span className="font-bold text-indigo-600">{role.level}</span>
+        {role.level === 100 && ' — Full access (CEO)'}
+        {role.level === 80 && ' — High access (Director)'}
+        {role.level === 60 && ' — Template management (Manager)'}
+        {role.level === 10 && ' — Basic access (Worker)'}
+      </div>
+    </div>
+
+    {/* Кнопки только для пользовательских ролей */}
+    {!role.isSystem && (
+      <div className="flex gap-4">
+        <button
+          onClick={() => handleEditRole(role)}
+          className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm underline"
+        >
+          Edit
+        </button>
+        <button
+          onClick={async () => {
+            if (!confirm(`Are you sure you want to delete the role "${role.name}"?`)) return;
+
+            try {
+              await companyService.deleteRole(role.id);
+              await loadRolesAndMembers();
+              alert(`Role "${role.name}" deleted successfully!`);
+            } catch (err: any) {
+              alert("Error: " + (err.message || "Failed to delete role"));
+            }
+          }}
+          className="text-red-600 hover:text-red-800 font-semibold text-sm underline"
+        >
+          Delete
+        </button>
+      </div>
+    )}
+  </div>
+))}
+      </div>
+    )}
+
+    {/* Участники компании */}
+    {companyMembers.length > 0 && (
+      <div className="mt-10">
+        <h3 className="text-2xl font-bold text-gray-900 mb-6">
+          Company Members ({companyMembers.length})
+        </h3>
+        <div className="grid gap-4">
+          {companyMembers.map((member) => {
+            const fullName = `${member.firstName || ''} ${member.lastName || ''}`.trim() || member.email;
+            const isCurrentUser = user?.id === member.id;
+
+            return (
+              <div
+                key={member.id}
+                className="flex justify-between items-center p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 shadow-md"
+              >
+                <div>
+                  <div className="text-lg font-semibold text-gray-900 flex items-center gap-3">
+                    {fullName}
+                    {isCurrentUser && (
+                      <span className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-full font-bold">
+                        YOU
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-base text-blue-800 mt-2">
+                    Role: <span className="font-bold">{member.companyRole || 'Unknown'}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+  </div>
+</Modal>
+
+{/* Модалка редактирования роли */}
+<Modal 
+  isOpen={showEditRole} 
+  onClose={() => {
+    setShowEditRole(false);
+    setEditingRole(null);
+    setRoleFormData({ roleName: '', level: 50 });
+    setError('');
+  }} 
+  title="Edit Role"
+>
+  {error && (
+    <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg mb-4">
+      {error}
+    </div>
+  )}
+  
+  <form onSubmit={handleUpdateRole} className="space-y-6">
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        Role Name
+      </label>
+      <input
+        type="text"
+        required
+        className="input-field text-lg"
+        value={roleFormData.roleName}
+        onChange={(e) => setRoleFormData({ ...roleFormData, roleName: e.target.value })}
+      />
+    </div>
+
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        Permission Level (10–100)
+      </label>
+      <input
+        type="number"
+        min="10"
+        max="100"
+        required
+        className="input-field text-lg"
+        value={roleFormData.level}
+        onChange={(e) => setRoleFormData({ ...roleFormData, level: parseInt(e.target.value) || 50 })}
+      />
+      <div className="mt-3 space-y-1 text-sm text-gray-600">
+        <p>• <strong>100</strong> — CEO (full access)</p>
+        <p>• <strong>80</strong> — Director</p>
+        <p>• <strong>60</strong> — Manager</p>
+        <p>• <strong>10</strong> — Worker</p>
+      </div>
+    </div>
+
+    <div className="flex justify-between items-center pt-4">
+      <button
+        type="button"
+        onClick={handleDeleteRole}
+        disabled={isSubmitting}
+        className="btn-danger px-6"
+      >
+        {isSubmitting ? 'Deleting...' : 'Delete Role'}
+      </button>
+      
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={() => {
+            setShowEditRole(false);
+            setEditingRole(null);
+            setRoleFormData({ roleName: '', level: 50 });
+            setError('');
+          }}
+          className="btn-secondary px-6"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="btn-primary px-8 flex items-center gap-2"
+        >
+          {isSubmitting ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  </form>
+</Modal>
+
+{/* Модалка создания новой роли */}
+<Modal 
+  isOpen={showCreateRole} 
+  onClose={() => {
+    setShowCreateRole(false);
+    setRoleFormData({ roleName: '', level: 50 });
+    setError('');
+  }} 
+  title="Create New Role"
+>
+  {error && (
+    <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-lg mb-4">
+      {error}
+    </div>
+  )}
+  
+  <form onSubmit={handleCreateRole} className="space-y-6">
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        Role Name
+      </label>
+      <input
+        type="text"
+        required
+        className="input-field text-lg"
+        value={roleFormData.roleName}
+        onChange={(e) => setRoleFormData({ ...roleFormData, roleName: e.target.value })}
+        placeholder="e.g. Senior Manager, Auditor, Legal Advisor"
+      />
+    </div>
+
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        Permission Level (10–100)
+      </label>
+      <input
+        type="number"
+        min="10"
+        max="100"
+        required
+        className="input-field text-lg"
+        value={roleFormData.level}
+        onChange={(e) => setRoleFormData({ ...roleFormData, level: parseInt(e.target.value) || 50 })}
+      />
+      <div className="mt-3 space-y-1 text-sm text-gray-600">
+        <p>• <strong>100</strong> — CEO (full access)</p>
+        <p>• <strong>80</strong> — Director</p>
+        <p>• <strong>60</strong> — Manager (can create templates)</p>
+        <p>• <strong>10</strong> — Worker (basic access)</p>
+      </div>
+    </div>
+
+    <div className="flex justify-end space-x-4 pt-4">
+      <button
+        type="button"
+        onClick={() => {
+          setShowCreateRole(false);
+          setRoleFormData({ roleName: '', level: 50 });
+          setError('');
+        }}
+        className="btn-secondary px-6"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="btn-primary px-8 flex items-center gap-2"
+      >
+        {isSubmitting ? (
+          <>Creating...</>
+        ) : (
+          <>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Create Role
+          </>
+        )}
+      </button>
+    </div>
+  </form>
+</Modal>
+
       </div>
     </Navigation>
   );
