@@ -55,9 +55,10 @@ export interface WorkflowAuditLog {
 
 export interface CreateWorkflowTemplateRequest {
   name: string;
-  description: string;
+  description?: string;
   stepsXml: string;
   companyId: number;
+  allowedRoleLevels?: number[]; // ← добавь это
 }
 
 export interface TaskApprovalRequest {
@@ -73,4 +74,27 @@ export interface BulkOperationResponse {
   successCount: number;
   failureCount: number;
   results: Record<number, string>; // mapping taskId to status/error
+}
+
+export interface WorkflowTask {
+  id: number;
+  stepOrder: number;
+  requiredRoleName: string;
+  requiredRoleLevel: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
+  assignedTo?: {
+    id: number;
+    email: string;
+    fullName?: string;
+  };
+  comment?: string;
+  createdAt: string;
+  completedAt?: string;
+  completedByName?: string;
+  document: {
+    id: number;
+    filename: string;
+    amount?: number;
+  };
+  workflowInstanceId: number;
 }

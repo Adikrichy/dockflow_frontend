@@ -233,7 +233,7 @@ const DashboardPage = () => {
                       Required role: {task.requiredRoleName} (Level {task.requiredRoleLevel})
                     </div>
                     <div className="mt-1 text-xs text-gray-500">
-                      Assigned: {formatDate(task.assignedAt)}
+                      Assigned: {formatDate(task.createdAt)}
                     </div>
                   </div>
                   <div className="flex space-x-2">

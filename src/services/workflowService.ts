@@ -27,6 +27,15 @@ export const workflowService = {
     return response.data;
   },
 
+  async updateTemplate(templateId: number, request: Partial<WorkflowTemplate>): Promise<WorkflowTemplate> {
+    const response = await api.put<WorkflowTemplate>(`/workflow/template/${templateId}`, request);
+    return response.data;
+  },
+
+  async deleteTemplate(templateId: number): Promise<void> {
+    await api.delete(`/workflow/template/${templateId}`);
+  },
+
   // Workflow Execution
   async startWorkflow(templateId: number, documentId: number): Promise<WorkflowInstance> {
     const response = await api.post<WorkflowInstance>(`/workflow/${templateId}/start`, null, {

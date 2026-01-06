@@ -73,6 +73,20 @@ export const useWorkflow = () => {
         },
     });
 
+    const bulkRejectMutation = useMutation({
+        mutationFn: (request: BulkTaskRequest) => workflowService.bulkRejectTasks(request),
+        onSuccess: (response) => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'my-tasks'] });
+            toast.success(`Successfully rejected ${response.successCount} tasks`);
+            if (response.failureCount > 0) {
+                toast.warning(`${response.failureCount} tasks failed to reject`);
+            }
+        },
+        onError: () => {
+            toast.error('Bulk rejection failed');
+        },
+    });
+
     const createTemplateMutation = useMutation({
         mutationFn: (request: CreateWorkflowTemplateRequest) =>
             workflowService.createTemplate(request),
@@ -82,6 +96,29 @@ export const useWorkflow = () => {
         },
         onError: () => {
             toast.error('Failed to create template');
+        },
+    });
+
+    const updateTemplateMutation = useMutation({
+        mutationFn: ({ templateId, request }: { templateId: number; request: any }) =>
+            workflowService.updateTemplate(templateId, request),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'templates'] });
+            toast.success('Workflow template updated');
+        },
+        onError: () => {
+            toast.error('Failed to update template');
+        },
+    });
+
+    const deleteTemplateMutation = useMutation({
+        mutationFn: (templateId: number) => workflowService.deleteTemplate(templateId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'templates'] });
+            toast.success('Workflow template deleted');
+        },
+        onError: () => {
+            toast.error('Failed to delete template');
         },
     });
 
@@ -116,6 +153,18 @@ export const useWorkflow = () => {
         },
     });
 
+    const startWorkflowMutation = useMutation({
+        mutationFn: ({ templateId, documentId }: { templateId: number; documentId: number }) =>
+            workflowService.startWorkflow(templateId, documentId),
+        onSuccess: (instance) => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'tasks'] });
+            toast.success(`Workflow started successfully (ID: ${instance.id})`);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to start workflow');
+        },
+    });
+
     return {
         useMyTasks,
         useCompanyTemplates,
@@ -125,8 +174,12 @@ export const useWorkflow = () => {
         rejectTaskMutation,
         bulkApproveMutation,
         createTemplateMutation,
+        updateTemplateMutation,
+        deleteTemplateMutation,
         assignTaskMutation,
         updateTaskStatusMutation,
+        bulkRejectMutation,
+        startWorkflowMutation,
         useCompanyDocuments
     };
 };

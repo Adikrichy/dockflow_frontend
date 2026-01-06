@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { chatService, companyService } from '../services/api';
+import { chatService } from '../services/api';
 import type { ChatChannelResponse } from '../services/api';
+import { companyService } from '../services/companyService';
 import Navigation from '../components/Navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 

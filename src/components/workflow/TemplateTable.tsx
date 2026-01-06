@@ -17,6 +17,7 @@ import {
     PlayArrow as StartIcon,
     Visibility as ViewIcon,
     Delete as DeleteIcon,
+    Security as SecurityIcon,
     Edit as EditIcon,
 } from '@mui/icons-material';
 import type { WorkflowTemplate } from '../../types/workflow';
@@ -25,7 +26,9 @@ interface TemplateTableProps {
     templates: WorkflowTemplate[];
     onStartWorkflow: (template: WorkflowTemplate) => void;
     onViewXml: (template: WorkflowTemplate) => void;
+    onEdit: (template: WorkflowTemplate) => void;
     onDelete: (template: WorkflowTemplate) => void;
+    onManageAccess?: (template: WorkflowTemplate) => void;
     canManage: boolean;
 }
 
@@ -33,7 +36,9 @@ const TemplateTable: React.FC<TemplateTableProps> = ({
     templates,
     onStartWorkflow,
     onViewXml,
+    onEdit,
     onDelete,
+    onManageAccess,
     canManage,
 }) => {
     return (
@@ -78,17 +83,39 @@ const TemplateTable: React.FC<TemplateTableProps> = ({
                                         >
                                             Start
                                         </Button>
+                                        {canManage && onManageAccess && (
+                                            <Tooltip title="Manage Access">
+                                                <IconButton
+                                                    size="small"
+                                                    color="primary"
+                                                    onClick={() => onManageAccess(template)}
+                                                >
+                                                    <SecurityIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
                                         <Tooltip title="View XML">
                                             <IconButton size="small" onClick={() => onViewXml(template)}>
                                                 <ViewIcon fontSize="small" />
                                             </IconButton>
                                         </Tooltip>
                                         {canManage && (
-                                            <Tooltip title="Delete">
-                                                <IconButton size="small" color="error" onClick={() => onDelete(template)}>
-                                                    <DeleteIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
+                                            <>
+                                                <Tooltip title="Edit">
+                                                    <IconButton size="small" color="primary" onClick={() => onEdit(template)}>
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Delete">
+                                                    <IconButton size="small" color="error" onClick={() => {
+                                                        if (window.confirm(`Are you sure you want to delete template "${template.name}"?`)) {
+                                                            onDelete(template);
+                                                        }
+                                                    }}>
+                                                        <DeleteIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </>
                                         )}
                                     </Box>
                                 </TableCell>

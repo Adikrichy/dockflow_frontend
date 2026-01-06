@@ -3,10 +3,12 @@ import type { Message } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
 export interface WorkflowEvent {
-  type: 'TASK_CREATED' | 'TASK_COMPLETED' | 'WORKFLOW_STARTED' | 'WORKFLOW_COMPLETED';
-  workflowInstanceId: number;
+  type: 'TASK_CREATED' | 'TASK_COMPLETED' | 'WORKFLOW_STARTED' | 'WORKFLOW_COMPLETED' | 'ROLE_UPDATED' | 'TASK_ASSIGNED';
+  workflowInstanceId?: number;
   taskId?: number;
   userId?: number;
+  roleName?: string;
+  roleLevel?: number;
   timestamp: string;
   data?: any;
 }
@@ -86,7 +88,8 @@ class WebSocketService {
 
     // Note: Adjust destination matching your backend logic exactly. 
     // Usually standard is /user/queue/... for private messages
-    const sub = this.client.subscribe(`/user/queue/workflow`, (message: Message) => {
+    // Correct subscription path to match WorkflowEventBroadcaster.java
+    const sub = this.client.subscribe(`/user/${userId}/workflow`, (message: Message) => {
       const event: WorkflowEvent = JSON.parse(message.body);
       callback(event);
     });

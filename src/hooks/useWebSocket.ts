@@ -4,7 +4,7 @@ import { websocketService } from '../services/websocketService';
 import type { WorkflowEvent, ChatMessage } from '../services/websocketService';
 
 export const useWebSocket = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshAuth } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [workflowEvents, setWorkflowEvents] = useState<WorkflowEvent[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -23,6 +23,12 @@ export const useWebSocket = () => {
         websocketService.subscribeToUserNotifications(user.id, (event) => {
           console.log('Personal workflow notification:', event);
           setWorkflowEvents(prev => [event, ...prev.slice(0, 49)]);
+
+          // Handle role updates
+          if (event.type === 'ROLE_UPDATED') {
+            console.log('Role updated, refreshing session...');
+            refreshAuth();
+          }
         });
 
         setIsConnected(true);

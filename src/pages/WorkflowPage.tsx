@@ -22,6 +22,12 @@ import {
   Paper,
   InputAdornment,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  OutlinedInput,
 } from '@mui/material';
 import {
   Assignment as TaskIcon,
@@ -35,6 +41,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useWorkflow } from '../hooks/useWorkflow';
 import { useWorkflowStore } from '../store/workflowStore';
+import { useCompanyRoles } from '../services/companyRolesService';
 import TaskTable from '../components/workflow/TaskTable';
 import TemplateTable from '../components/workflow/TemplateTable';
 import WorkflowEditor from '../components/workflow/WorkflowEditor';
@@ -42,9 +49,10 @@ import WorkflowDetails from '../components/workflow/WorkflowDetails';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useWorkflowSocket } from '../hooks/useWorkflowSocket';
 import { format } from 'date-fns';
+import { documentService } from '../services/documentService';
 
 const WorkflowPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, currentCompany } = useAuth();
   const { activeTab, setActiveTab, selectedTaskIds, clearSelection } = useWorkflowStore();
   const {
     useMyTasks,
@@ -54,20 +62,36 @@ const WorkflowPage: React.FC = () => {
     rejectTaskMutation,
     bulkApproveMutation,
     createTemplateMutation,
+    updateTemplateMutation,
+    deleteTemplateMutation,
     useCompanyDocuments,
   } = useWorkflow();
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
   const [selectedInstanceId] = useState<number | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [selectedTemplateForAccess, setSelectedTemplateForAccess] = useState<any | null>(null);
   const [comment, setComment] = useState('');
   const [pendingActionTask, setPendingActionTask] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+
+  // Preview States
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState('');
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   // ✅ Состояния для выбора документа
   const [isDocumentSelectorOpen, setIsDocumentSelectorOpen] = useState(false);
   const [selectedTemplateForStart, setSelectedTemplateForStart] = useState<any | null>(null);
   const [documentSearchTerm, setDocumentSearchTerm] = useState('');
+
+  // ✅ Состояние для управления уровнями доступа
+  const [allowedRoleLevels, setAllowedRoleLevels] = useState<number[]>([]);
 
   // Data fetching
   const companyId = (user as any)?.memberships?.[0]?.companyId || (user as any)?.company?.id || 1;
@@ -79,14 +103,26 @@ const WorkflowPage: React.FC = () => {
   // ✅ Загрузка документов компании
   const { data: documents, isLoading: documentsLoading } = useCompanyDocuments();
 
+  // ✅ Загрузка ролей компании
+  const { data: roles = [], isLoading: rolesLoading } = useCompanyRoles();
+
   // ✅ Фильтрация документов по названию файла
   const filteredDocuments = useMemo(() => {
     if (!documents || documents.length === 0) return [];
-    
+
     return documents.filter((doc: any) =>
       doc.originalFilename && doc.originalFilename.toLowerCase().includes(documentSearchTerm.toLowerCase())
     );
   }, [documents, documentSearchTerm]);
+
+  const canManageTemplates = useMemo(() => {
+    // User can manage templates if they are manager or above (level 60+)
+    const roleLevel = currentCompany?.roleLevel
+      || (user as any)?.memberships?.[0]?.roleLevel
+      || (user as any)?.role?.level
+      || 0;
+    return roleLevel >= 60;
+  }, [currentCompany, user]);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -128,12 +164,35 @@ const WorkflowPage: React.FC = () => {
     });
   };
 
-  const handleCreateTemplate = (data: any) => {
+  const handleSaveTemplate = (data: any) => {
     const companyId = (user as any)?.memberships?.[0]?.companyId || (user as any)?.company?.id || 1;
-    createTemplateMutation.mutate(
-      { ...data, companyId },
-      { onSuccess: () => setIsEditorOpen(false) }
-    );
+
+    if (editingTemplate) {
+      updateTemplateMutation.mutate(
+        {
+          templateId: editingTemplate.id,
+          request: {
+            ...data,
+            allowedRoleLevels: data.allowedRoleLevels || []
+          }
+        },
+        {
+          onSuccess: () => {
+            setIsEditorOpen(false);
+            setEditingTemplate(null);
+          }
+        }
+      );
+    } else {
+      createTemplateMutation.mutate(
+        {
+          ...data,
+          companyId,
+          allowedRoleLevels: data.allowedRoleLevels || []
+        },
+        { onSuccess: () => setIsEditorOpen(false) }
+      );
+    }
   };
 
   // ✅ Новая функция для запуска workflow
@@ -154,17 +213,17 @@ const WorkflowPage: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        alert(`Workflow успешно запущен! Instance ID: ${data.id}`);
+        alert(`Workflow successfully started! Instance ID: ${data.id}`);
         setIsDocumentSelectorOpen(false);
         setSelectedTemplateForStart(null);
         setDocumentSearchTerm('');
       } else {
         const error = await response.text();
-        alert('Ошибка запуска: ' + error);
+        alert('Start error: ' + error);
       }
     } catch (err) {
       console.error(err);
-      alert('Ошибка сети при запуске workflow');
+      alert('Network error starting workflow');
     }
   };
 
@@ -172,9 +231,24 @@ const WorkflowPage: React.FC = () => {
     setSelectedTemplate(template);
   };
 
+  const handleEditTemplate = (template: any) => {
+    setEditingTemplate(template);
+    setIsEditorOpen(true);
+  };
+
+  const handleManageAccess = (template: any) => {
+    setSelectedTemplateForAccess(template);
+    setIsAccessDialogOpen(true);
+    // Initialize with existing levels, ensuring CEO (100) is included
+    const existingLevels = template.allowedRoleLevels || [100];
+    if (!existingLevels.includes(100)) {
+      existingLevels.push(100);
+    }
+    setAllowedRoleLevels(existingLevels);
+  };
+
   const handleDeleteTemplate = (template: any) => {
-    // Implement delete mutation in useWorkflow
-    console.log('Delete template', template.id);
+    deleteTemplateMutation.mutate(template.id);
   };
 
   // ✅ Закрытие модалки выбора документа
@@ -184,9 +258,65 @@ const WorkflowPage: React.FC = () => {
     setDocumentSearchTerm('');
   };
 
-  // Roles verification (role >= 60 for management)
-  const roleLevel = (user as any)?.memberships?.[0]?.roleLevel || (user as any)?.role?.level || 0;
-  const canManageTemplates = roleLevel >= 60;
+  // ✅ Функция для сохранения настроек доступа
+  const handleSaveAccessSettings = () => {
+    if (!selectedTemplateForAccess) return;
+
+    updateTemplateMutation.mutate(
+      {
+        templateId: selectedTemplateForAccess.id,
+        request: {
+          allowedRoleLevels: allowedRoleLevels.includes(100) ? allowedRoleLevels : [...allowedRoleLevels, 100]
+        }
+      },
+      {
+        onSuccess: () => {
+          setIsAccessDialogOpen(false);
+          setSelectedTemplateForAccess(null);
+          setAllowedRoleLevels([]);
+        }
+      }
+    );
+  };
+
+  // ✅ Закрытие модалки управления доступом
+  const handleCloseAccessDialog = () => {
+    setIsAccessDialogOpen(false);
+    setSelectedTemplateForAccess(null);
+    setAllowedRoleLevels([]);
+  };
+
+  // ✅ Обработка просмотра документа
+  const handleViewDocument = async (documentId: number) => {
+    try {
+      setIsPreviewLoading(true);
+      // Find the document filename for the title
+      const task = tasks?.find(t => t.document?.id === documentId);
+      setPreviewTitle(task?.document?.filename || 'Document Preview');
+      setIsPreviewOpen(true);
+
+      const blob = await documentService.getDocumentFile(documentId);
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+    } catch (err) {
+      console.error('Error fetching document for preview:', err);
+      alert('Failed to load document preview');
+      setIsPreviewOpen(false);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleClosePreview = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    setIsPreviewOpen(false);
+    setPreviewTitle('');
+  };
+
+
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
@@ -240,7 +370,7 @@ const WorkflowPage: React.FC = () => {
             tasks={tasks || []}
             onApprove={handleApproveClick}
             onReject={handleRejectClick}
-            onViewDocument={(id) => console.log('View doc', id)}
+            onViewDocument={handleViewDocument}
           />
         </Box>
       )}
@@ -251,7 +381,9 @@ const WorkflowPage: React.FC = () => {
             templates={templates || []}
             onStartWorkflow={handleStartWorkflow}
             onViewXml={handleViewXml}
+            onEdit={handleEditTemplate}
             onDelete={handleDeleteTemplate}
+            onManageAccess={handleManageAccess}
             canManage={canManageTemplates}
           />
         </Box>
@@ -266,10 +398,10 @@ const WorkflowPage: React.FC = () => {
       )}
 
       {/* ✅ Модалка для выбора документа */}
-      <Dialog 
-        open={isDocumentSelectorOpen} 
-        onClose={handleCloseDocumentSelector} 
-        fullWidth 
+      <Dialog
+        open={isDocumentSelectorOpen}
+        onClose={handleCloseDocumentSelector}
+        fullWidth
         maxWidth="md"
         PaperProps={{
           sx: {
@@ -281,7 +413,7 @@ const WorkflowPage: React.FC = () => {
         <DialogTitle sx={{ m: 0, p: 3, pb: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
-              Выберите документ для запуска workflow
+              Select a document to start workflow
             </Typography>
             <IconButton
               aria-label="close"
@@ -294,15 +426,15 @@ const WorkflowPage: React.FC = () => {
             </IconButton>
           </Box>
           <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-            Шаблон: <strong>{selectedTemplateForStart?.name}</strong>
+            Template: <strong>{selectedTemplateForStart?.name}</strong>
           </Typography>
         </DialogTitle>
-        
+
         <DialogContent dividers sx={{ p: 0 }}>
           <Box sx={{ p: 3, pb: 2 }}>
             <TextField
               fullWidth
-              placeholder="Поиск по названию файла..."
+              placeholder="Search by filename..."
               value={documentSearchTerm}
               onChange={(e) => setDocumentSearchTerm(e.target.value)}
               InputProps={{
@@ -329,16 +461,16 @@ const WorkflowPage: React.FC = () => {
           ) : filteredDocuments.length === 0 ? (
             <Box sx={{ textAlign: 'center', p: 4 }}>
               <Typography color="textSecondary">
-                {documents.length === 0 
-                  ? 'Документы не найдены' 
-                  : 'Документы по вашему запросу не найдены'}
+                {documents.length === 0
+                  ? 'No documents found'
+                  : 'No documents match your search'}
               </Typography>
             </Box>
           ) : (
-            <TableContainer 
-              component={Paper} 
+            <TableContainer
+              component={Paper}
               elevation={0}
-              sx={{ 
+              sx={{
                 maxHeight: '400px',
                 borderTop: 1,
                 borderColor: 'divider',
@@ -348,34 +480,34 @@ const WorkflowPage: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600, backgroundColor: 'background.paper' }}>
-                      Название файла
+                      Filename
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600, backgroundColor: 'background.paper', width: '200px' }}>
-                      Дата создания
+                      Created At
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600, backgroundColor: 'background.paper', width: '120px' }}>
-                      Действия
+                      Actions
                     </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filteredDocuments.map((document: any) => (
-                    <TableRow 
+                    <TableRow
                       key={document.id}
                       hover
-                      sx={{ 
+                      sx={{
                         '&:last-child td, &:last-child th': { border: 0 },
                         '&:hover': { backgroundColor: 'action.hover' }
                       }}
                     >
                       <TableCell sx={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         <Typography variant="body2" noWrap>
-                          {document.originalFilename || 'Без имени'}
+                          {document.originalFilename || 'No name'}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="textSecondary">
-                          {document.createdAt ? format(new Date(document.createdAt), 'dd.MM.yyyy HH:mm') : 'Нет даты'}
+                          {document.createdAt ? format(new Date(document.createdAt), 'MMM dd, yyyy HH:mm') : 'No date'}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -392,7 +524,7 @@ const WorkflowPage: React.FC = () => {
                             '&:hover': { bgcolor: '#059669' }
                           }}
                         >
-                          Выбрать
+                          Select
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -402,18 +534,18 @@ const WorkflowPage: React.FC = () => {
             </TableContainer>
           )}
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 2, pt: 1.5 }}>
-          <Button 
+          <Button
             onClick={handleCloseDocumentSelector}
             sx={{ textTransform: 'none', fontWeight: 500 }}
           >
-            Отмена
+            Cancel
           </Button>
           <Typography variant="body2" color="textSecondary" sx={{ ml: 2, mr: 'auto' }}>
-            Найдено: {filteredDocuments.length} из {documents ? documents.length : 0}
-        </Typography>
-        
+            Found: {filteredDocuments.length} of {documents ? documents.length : 0}
+          </Typography>
+
         </DialogActions>
       </Dialog>
 
@@ -432,7 +564,7 @@ const WorkflowPage: React.FC = () => {
           <WorkflowDetails auditLogs={auditLogs || []} isLoading={auditLoading} />
         </DialogContent>
       </Dialog>
-      
+
       <Dialog open={!!selectedTemplate} onClose={() => setSelectedTemplate(null)} fullWidth maxWidth="md">
         <DialogTitle>
           Template XML: {selectedTemplate?.name}
@@ -449,7 +581,7 @@ const WorkflowPage: React.FC = () => {
           </pre>
         </DialogContent>
       </Dialog>
-      
+
       <Dialog open={!!pendingActionTask} onClose={() => setPendingActionTask(null)} fullWidth maxWidth="xs">
         <DialogTitle>
           {pendingActionTask?.action === 'approve' ? 'Approve Task' : 'Reject Task'}
@@ -493,7 +625,10 @@ const WorkflowPage: React.FC = () => {
           Create New Workflow Template
           <IconButton
             aria-label="close"
-            onClick={() => setIsEditorOpen(false)}
+            onClick={() => {
+              setIsEditorOpen(false);
+              setEditingTemplate(null);
+            }}
             sx={{
               color: (theme) => theme.palette.grey[500],
             }}
@@ -501,12 +636,229 @@ const WorkflowPage: React.FC = () => {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
+        <DialogContent dividers sx={{ p: 0 }}>
           <WorkflowEditor
-            onSave={handleCreateTemplate}
-            isLoading={createTemplateMutation.isPending}
+            initialName={editingTemplate?.name}
+            initialDescription={editingTemplate?.description}
+            initialXml={editingTemplate?.stepsXml}
+            initialAllowedRoleLevels={editingTemplate?.allowedRoleLevels}
+            onSave={handleSaveTemplate}
+            isLoading={createTemplateMutation.isPending || updateTemplateMutation.isPending}
           />
         </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isAccessDialogOpen}
+        onClose={handleCloseAccessDialog}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            borderRadius: '16px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ m: 0, p: 3, pb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+              Manage Template Access
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+              Template: <Box component="span" sx={{ color: '#3b82f6', fontWeight: 600 }}>{selectedTemplateForAccess?.name}</Box>
+            </Typography>
+          </Box>
+          <IconButton
+            onClick={handleCloseAccessDialog}
+            sx={{
+              color: (theme) => theme.palette.grey[400],
+              '&:hover': { color: '#ef4444', bgcolor: 'rgba(239, 68, 68, 0.05)' }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ px: 3, py: 2 }}>
+          <Typography variant="body2" sx={{ mb: 3, color: '#64748b' }}>
+            Select roles allowed to start this workflow. Users with these roles (or higher) will be able to initiate this process.
+          </Typography>
+
+          {rolesLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={32} thickness={4} sx={{ color: '#3b82f6' }} />
+            </Box>
+          ) : (
+            <FormControl fullWidth variant="outlined">
+              <InputLabel id="allowed-roles-label" sx={{ bgcolor: 'white', px: 1 }}>Allowed Roles</InputLabel>
+              <Select
+                labelId="allowed-roles-label"
+                multiple
+                value={allowedRoleLevels}
+                onChange={(e) => {
+                  const val = e.target.value as number[];
+                  // Ensure CEO (100) is always present
+                  const newVal = val.includes(100) ? val : [...val, 100];
+                  setAllowedRoleLevels(newVal);
+                }}
+                input={<OutlinedInput label="Allowed Roles" />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, py: 0.5 }}>
+                    {(selected as number[]).sort((a, b) => b - a).map((level) => {
+                      const role = roles.find(r => r.level === level);
+                      const isCEO = level === 100;
+                      return (
+                        <Chip
+                          key={level}
+                          label={role ? `${role.name} (L${level})` : `L${level}`}
+                          size="small"
+                          sx={{
+                            borderRadius: '6px',
+                            fontWeight: 600,
+                            bgcolor: isCEO ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                            color: isCEO ? '#3b82f6' : '#475569',
+                            border: isCEO ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid transparent',
+                            '& .MuiChip-label': { px: 1.5 }
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                )}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      maxHeight: 300,
+                      mt: 1,
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      '& .MuiMenuItem-root': {
+                        py: 1.5,
+                        px: 2,
+                        '&.Mui-selected': { bgcolor: 'rgba(59, 130, 246, 0.08)' },
+                        '&:hover': { bgcolor: 'rgba(59, 130, 246, 0.04)' }
+                      }
+                    }
+                  }
+                }}
+              >
+                {roles.map((role) => (
+                  <MenuItem
+                    key={role.id}
+                    value={role.level}
+                    disabled={role.level === 100} // Cannot deselect CEO
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {role.name}
+                      </Typography>
+                      <Chip
+                        label={`L${role.level}`}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          bgcolor: role.level === 100 ? '#3b82f6' : 'rgba(0,0,0,0.05)',
+                          color: role.level === 100 ? 'white' : '#64748b'
+                        }}
+                      />
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <Alert
+            severity="info"
+            sx={{
+              mt: 3,
+              borderRadius: '10px',
+              bgcolor: 'rgba(59, 130, 246, 0.05)',
+              color: '#1e40af',
+              border: '1px solid rgba(59, 130, 246, 0.1)',
+              '& .MuiAlert-icon': { color: '#3b82f6' }
+            }}
+          >
+            Role Level 100 (CEO) always has access to start workflows in their company.
+          </Alert>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button
+            onClick={handleCloseAccessDialog}
+            sx={{ textTransform: 'none', fontWeight: 600, color: '#64748b' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveAccessSettings}
+            variant="contained"
+            disableElevation
+            sx={{
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 4,
+              borderRadius: '8px',
+              bgcolor: '#3b82f6',
+              '&:hover': { bgcolor: '#2563eb' }
+            }}
+          >
+            Save Access Level
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Document Preview Dialog */}
+      <Dialog
+        open={isPreviewOpen}
+        onClose={handleClosePreview}
+        fullWidth
+        maxWidth="lg"
+        PaperProps={{
+          sx: {
+            height: '90vh',
+            borderRadius: '12px',
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>{previewTitle}</Typography>
+          <IconButton onClick={handleClosePreview}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0, bgcolor: '#525659', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          {isPreviewLoading ? (
+            <CircularProgress sx={{ color: 'white' }} />
+          ) : previewUrl ? (
+            <iframe
+              src={previewUrl}
+              title="Document Preview"
+              width="100%"
+              height="100%"
+              style={{ border: 'none' }}
+            />
+          ) : (
+            <Typography color="white">Failed to load preview</Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleClosePreview} variant="outlined">Close</Button>
+          {previewUrl && (
+            <Button
+              variant="contained"
+              component="a"
+              href={previewUrl}
+              download={previewTitle}
+              sx={{ bgcolor: '#3b82f6', '&:hover': { bgcolor: '#2563eb' } }}
+            >
+              Download
+            </Button>
+          )}
+        </DialogActions>
       </Dialog>
 
       {tasksLoading && <LoadingSpinner />}

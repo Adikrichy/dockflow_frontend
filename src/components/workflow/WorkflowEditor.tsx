@@ -32,7 +32,9 @@ import {
     MenuItem,
     Select,
     FormControl,
+    CircularProgress,
     IconButton,
+    Tooltip,
 } from '@mui/material';
 import {
     Save as SaveIcon,
@@ -54,7 +56,8 @@ interface WorkflowEditorProps {
     initialName?: string;
     initialDescription?: string;
     initialXml?: string;
-    onSave: (data: { name: string; description: string; stepsXml: string }) => void;
+    initialAllowedRoleLevels?: number[];
+    onSave: (data: { name: string; description: string; stepsXml: string; allowedRoleLevels: number[] }) => void;
     isLoading?: boolean;
 }
 
@@ -62,6 +65,7 @@ const WorkflowEditor = ({
     initialName = '',
     initialDescription = '',
     initialXml = '',
+    initialAllowedRoleLevels = [100],
     onSave,
     isLoading = false,
 }: WorkflowEditorProps) => {
@@ -69,8 +73,14 @@ const WorkflowEditor = ({
     const [description, setDescription] = useState(initialDescription);
     const [activeTab, setActiveTab] = useState(0);
     const [xml, setXml] = useState(initialXml || `<workflow>\n  <step order="1" roleName="Manager" roleLevel="60" action="approve"/>\n</workflow>`);
-    const [roles, setRoles] = useState<Array<{id: number, name: string, level: number}>>([]);
+    const [roles, setRoles] = useState<Array<{ id: number, name: string, level: number }>>([]);
     const [rolesLoading, setRolesLoading] = useState(true);
+
+    // Ensure 100 is always there
+    const [allowedStartLevels, setAllowedStartLevels] = useState<number[]>(() => {
+        const initial = initialAllowedRoleLevels || [100];
+        return initial.includes(100) ? initial : [...initial, 100];
+    });
 
     // React Flow state
     const [nodes, setNodes] = useState<Node[]>([]);
@@ -79,6 +89,15 @@ const WorkflowEditor = ({
 
     // Sidebar state
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+    const toggleStartLevel = (level: number) => {
+        if (level === 100) return; // CEO always allowed, cannot be toggled off
+        setAllowedStartLevels(prev =>
+            prev.includes(level)
+                ? prev.filter(l => l !== level)
+                : [...prev, level].sort((a, b) => b - a) // nicely sort descending
+        );
+    };
 
     // Parsing XML to React Flow
     const parseXmlToFlow = useCallback((content: string) => {
@@ -237,31 +256,37 @@ const WorkflowEditor = ({
 
     const handleSave = () => {
         if (activeTab === 0) syncFlowToXml();
-        onSave({ name, description, stepsXml: xml });
+
+        onSave({
+            name,
+            description,
+            stepsXml: xml,
+            allowedRoleLevels: allowedStartLevels
+        });
     };
 
-  useEffect(() => {
-  const fetchRoles = async () => {
-    try {
-      setRolesLoading(true);
-      const response = await fetch('/api/company/getAllRoles', {
-        credentials: 'include'  // Важно, чтобы куки с токеном ушли
-      });
-      if (response.ok) {
-        const data = await response.json();  // массив вроде [{id, name, level, isSystem}]
-        setRoles(data);
-      } else {
-        console.error('Ошибка загрузки ролей');
-      }
-    } catch (err) {
-      console.error('Ошибка сети при загрузке ролей', err);
-    } finally {
-      setRolesLoading(false);
-    }
-  };
+    useEffect(() => {
+        const fetchRoles = async () => {
+            try {
+                setRolesLoading(true);
+                const response = await fetch('/api/company/getAllRoles', {
+                    credentials: 'include'  // Important for cookies
+                });
+                if (response.ok) {
+                    const data = await response.json();  // массив вроде [{id, name, level, isSystem}]
+                    setRoles(data);
+                } else {
+                    console.error('Error loading roles');
+                }
+            } catch (err) {
+                console.error('Network error loading roles', err);
+            } finally {
+                setRolesLoading(false);
+            }
+        };
 
-  fetchRoles();
-}, []);
+        fetchRoles();
+    }, []);
 
     useEffect(() => {
         if (activeTab === 0) syncFlowToXml();
@@ -383,6 +408,95 @@ const WorkflowEditor = ({
                                 />
                             </Box>
 
+                            <Box sx={{ p: 2, bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                                <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.4)', fontWeight: 700, mb: 2, display: 'block', letterSpacing: '0.05em' }}>
+                                    WHO CAN START
+                                </Typography>
+
+                                {rolesLoading ? (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                                        <CircularProgress size={24} sx={{ color: '#3b82f6' }} />
+                                    </Box>
+                                ) : roles.length === 0 ? (
+                                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', textAlign: 'center', py: 2 }}>
+                                        No roles found
+                                    </Typography>
+                                ) : (
+                                    <Box sx={{ maxHeight: 200, overflowY: 'auto', pr: 1 }}> {/* Scrolling container */}
+                                        <Stack spacing={1}>
+                                            {roles.sort((a, b) => b.level - a.level).map(({ level, name }) => {
+                                                const isSelected = allowedStartLevels.includes(level);
+                                                const isMandatory = level === 100;
+
+                                                return (
+                                                    <Box
+                                                        key={level}
+                                                        onClick={() => !isMandatory && toggleStartLevel(level)}
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 1.5,
+                                                            p: 1.25,
+                                                            borderRadius: '8px',
+                                                            bgcolor: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                                                            border: `1px solid ${isSelected ? '#3b82f6' : 'rgba(255, 255, 255, 0.05)'}`,
+                                                            cursor: isMandatory ? 'default' : 'pointer',
+                                                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                            opacity: isMandatory ? 1 : 0.8,
+                                                            '&:hover': !isMandatory ? {
+                                                                bgcolor: 'rgba(59, 130, 246, 0.1)',
+                                                                borderColor: '#3b82f6',
+                                                                opacity: 1,
+                                                                transform: 'translateX(4px)'
+                                                            } : {}
+                                                        }}
+                                                    >
+                                                        <Box
+                                                            sx={{
+                                                                width: 18,
+                                                                height: 18,
+                                                                borderRadius: '4px',
+                                                                border: `2px solid ${isSelected ? (level >= 80 ? '#a78bfa' : level >= 60 ? '#34d399' : '#94a3b8') : 'rgba(255, 255, 255, 0.2)'}`,
+                                                                bgcolor: isSelected ? (level >= 80 ? '#a78bfa' : level >= 60 ? '#34d399' : '#94a3b8') : 'transparent',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            {isSelected && (
+                                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4">
+                                                                    <polyline points="20 6 9 17 4 12" />
+                                                                </svg>
+                                                            )}
+                                                        </Box>
+                                                        <Box sx={{ flexGrow: 1 }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'white', lineHeight: 1.2, display: 'block' }}>
+                                                                {name}
+                                                            </Typography>
+                                                            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.65rem' }}>
+                                                                Level {level} {isMandatory && '• Mandatory'}
+                                                            </Typography>
+                                                        </Box>
+                                                        {isMandatory && (
+                                                            <Tooltip title="CEO always has access">
+                                                                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#3b82f6', boxShadow: '0 0 8px #3b82f6' }} />
+                                                            </Tooltip>
+                                                        )}
+                                                    </Box>
+                                                );
+                                            })}
+                                        </Stack>
+                                    </Box>
+                                )}
+
+                                {allowedStartLevels.length === 0 && (
+                                    <Typography variant="caption" sx={{ color: '#ef4444', mt: 2, fontWeight: 500 }}>
+                                        Warning: no one will be able to start the workflow!
+                                    </Typography>
+                                )}
+                            </Box>
+
                             <Box sx={{ mt: 2 }}>
                                 <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 600, mb: 1, display: 'block' }}>AVAILABLE STEPS</Typography>
                                 <Button
@@ -499,119 +613,119 @@ const WorkflowEditor = ({
                                 </Box>
 
                                 <Box>
-    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>
-        TARGET ROLE
-    </Typography>
-    <FormControl fullWidth variant="filled" sx={{
-        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
-    }}>
-        <Select
-            value={(selectedNode?.data as any)?.roleName || ''}
-            onChange={(e) => {
-                const selectedRole = roles.find(r => r.name === e.target.value);
-                if (selectedRole) {
-                    handleNodeDataChange('roleName', selectedRole.name);
-                    handleNodeDataChange('roleLevel', selectedRole.level);  // Автоматически подставляем level
-                }
-            }}
-            disabled={rolesLoading || roles.length === 0}
-            displayEmpty
-        >
-            {rolesLoading ? (
-                <MenuItem disabled>Загрузка ролей...</MenuItem>
-            ) : roles.length === 0 ? (
-                <MenuItem disabled>Нет ролей в компании</MenuItem>
-            ) : (
-                roles.map((role) => (
-                    <MenuItem key={role.id} value={role.name}>
-                        {role.name} (Level: {role.level})
-                    </MenuItem>
-                ))
-            )}
-        </Select>
-    </FormControl>
-</Box>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>
+                                        TARGET ROLE
+                                    </Typography>
+                                    <FormControl fullWidth variant="filled" sx={{
+                                        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
+                                    }}>
+                                        <Select
+                                            value={(selectedNode?.data as any)?.roleName || ''}
+                                            onChange={(e) => {
+                                                const selectedRole = roles.find(r => r.name === e.target.value);
+                                                if (selectedRole) {
+                                                    handleNodeDataChange('roleName', selectedRole.name);
+                                                    handleNodeDataChange('roleLevel', selectedRole.level);  // Auto-set level
+                                                }
+                                            }}
+                                            disabled={rolesLoading || roles.length === 0}
+                                            displayEmpty
+                                        >
+                                            {rolesLoading ? (
+                                                <MenuItem disabled>Loading roles...</MenuItem>
+                                            ) : roles.length === 0 ? (
+                                                <MenuItem disabled>No roles in company</MenuItem>
+                                            ) : (
+                                                roles.map((role) => (
+                                                    <MenuItem key={role.id} value={role.name}>
+                                                        {role.name} (Level: {role.level})
+                                                    </MenuItem>
+                                                ))
+                                            )}
+                                        </Select>
+                                    </FormControl>
+                                </Box>
 
                                 <Box>
-    <Typography 
-        variant="caption" 
-        sx={{ 
-            color: 'rgba(255, 255, 255, 0.3)', 
-            fontWeight: 700, 
-            mb: 1, 
-            display: 'block' 
-        }}
-    >
-        ACCESS LEVEL
-    </Typography>
-    <TextField
-        type="number"
-        value={(selectedNode?.data as any)?.roleLevel || 60}
-        fullWidth
-        variant="filled"
-        InputProps={{
-            readOnly: true, // Запрещаем редактирование
-        }}
-        sx={{
-            '& .MuiFilledInput-root': { 
-                bgcolor: 'rgba(255, 255, 255, 0.03)', 
-                borderRadius: '8px', 
-                border: '1px solid rgba(255, 255, 255, 0.05)', 
-                color: 'white' 
-            },
-            '& .MuiFilledInput-input': {
-                cursor: 'default', // Убираем курсор ввода
-                color: 'rgba(255, 255, 255, 0.9)',
-            },
-            '& .MuiFilledInput-root.Mui-disabled': {
-                bgcolor: 'rgba(255, 255, 255, 0.05)',
-            }
-        }}
-    />
-</Box>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: 'rgba(255, 255, 255, 0.3)',
+                                            fontWeight: 700,
+                                            mb: 1,
+                                            display: 'block'
+                                        }}
+                                    >
+                                        ACCESS LEVEL
+                                    </Typography>
+                                    <TextField
+                                        type="number"
+                                        value={(selectedNode?.data as any)?.roleLevel || 60}
+                                        fullWidth
+                                        variant="filled"
+                                        InputProps={{
+                                            readOnly: true, // Prevent manual editing
+                                        }}
+                                        sx={{
+                                            '& .MuiFilledInput-root': {
+                                                bgcolor: 'rgba(255, 255, 255, 0.03)',
+                                                borderRadius: '8px',
+                                                border: '1px solid rgba(255, 255, 255, 0.05)',
+                                                color: 'white'
+                                            },
+                                            '& .MuiFilledInput-input': {
+                                                cursor: 'default', // Remove input cursor
+                                                color: 'rgba(255, 255, 255, 0.9)',
+                                            },
+                                            '& .MuiFilledInput-root.Mui-disabled': {
+                                                bgcolor: 'rgba(255, 255, 255, 0.05)',
+                                            }
+                                        }}
+                                    />
+                                </Box>
 
-<Box>
-    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>REQUIRED ACTION</Typography>
-    <FormControl fullWidth variant="filled" sx={{
-        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
-        '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.4)' }
-    }}>
-        <Select
-            value={(selectedNode?.data as any)?.action || 'approve'}
-            onChange={(e) => handleNodeDataChange('action', e.target.value)}
-            disableUnderline
-        >
-            <MenuItem value="approve">Approve</MenuItem>
-            <MenuItem value="sign">Digital Signature</MenuItem>
-            <MenuItem value="review">Internal Review</MenuItem>
-            <MenuItem value="publish">Final Publish</MenuItem>
-        </Select>
-    </FormControl>
-</Box>
+                                <Box>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>REQUIRED ACTION</Typography>
+                                    <FormControl fullWidth variant="filled" sx={{
+                                        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
+                                        '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.4)' }
+                                    }}>
+                                        <Select
+                                            value={(selectedNode?.data as any)?.action || 'approve'}
+                                            onChange={(e) => handleNodeDataChange('action', e.target.value)}
+                                            disableUnderline
+                                        >
+                                            <MenuItem value="approve">Approve</MenuItem>
+                                            <MenuItem value="sign">Digital Signature</MenuItem>
+                                            <MenuItem value="review">Internal Review</MenuItem>
+                                            <MenuItem value="publish">Final Publish</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Box>
 
-<Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.05)' }} />
+                                <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.05)' }} />
 
-<Button
-    variant="outlined"
-    fullWidth
-    onClick={() => selectedNode && deleteNode(selectedNode.id)}
-    sx={{
-        color: '#ef4444',
-        borderColor: 'rgba(239, 68, 68, 0.2)',
-        '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.05)', borderColor: '#ef4444' },
-        textTransform: 'none',
-        py: 1.5,
-        borderRadius: '10px'
-    }}
->
-    Remove Action Block
-</Button>
-</Stack>
-</Box>
-</Drawer>
-</Box>
-</Box>
-</Box>
+                                <Button
+                                    variant="outlined"
+                                    fullWidth
+                                    onClick={() => selectedNode && deleteNode(selectedNode.id)}
+                                    sx={{
+                                        color: '#ef4444',
+                                        borderColor: 'rgba(239, 68, 68, 0.2)',
+                                        '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.05)', borderColor: '#ef4444' },
+                                        textTransform: 'none',
+                                        py: 1.5,
+                                        borderRadius: '10px'
+                                    }}
+                                >
+                                    Remove Action Block
+                                </Button>
+                            </Stack>
+                        </Box>
+                    </Drawer>
+                </Box>
+            </Box>
+        </Box>
     );
 };
 
