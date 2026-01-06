@@ -115,4 +115,14 @@ export const workflowService = {
     });
     return response.data;
   },
+
+  async claimTask(taskId: number): Promise<TaskResponse> {
+    const response = await api.post<TaskResponse>(`/workflow/task/${taskId}/claim`);
+    return response.data;
+  },
+
+  async getCompanyRoles(companyId: number): Promise<any[]> {
+    const response = await api.get<any[]>(`/workflow/company/${companyId}/roles`);
+    return response.data;
+  },
 };

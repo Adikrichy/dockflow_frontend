@@ -34,6 +34,12 @@ export const useWorkflow = () => {
         enabled: !!companyId,
     });
 
+    const useCompanyRoles = (companyId: number | null) => useQuery({
+        queryKey: ['company', companyId, 'roles'],
+        queryFn: () => workflowService.getCompanyRoles(companyId!),
+        enabled: !!companyId,
+    });
+
     // Mutations
     const approveTaskMutation = useMutation({
         mutationFn: ({ taskId, request }: { taskId: number; request: TaskApprovalRequest }) =>
@@ -165,6 +171,18 @@ export const useWorkflow = () => {
         },
     });
 
+    const claimTaskMutation = useMutation({
+        mutationFn: (taskId: number) => workflowService.claimTask(taskId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'my-tasks'] });
+            toast.success('Task claimed successfully');
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to claim task');
+        },
+    });
+
     return {
         useMyTasks,
         useCompanyTemplates,
@@ -180,6 +198,8 @@ export const useWorkflow = () => {
         updateTaskStatusMutation,
         bulkRejectMutation,
         startWorkflowMutation,
-        useCompanyDocuments
+        claimTaskMutation,
+        useCompanyDocuments,
+        useCompanyRoles
     };
 };

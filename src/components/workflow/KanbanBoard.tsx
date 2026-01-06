@@ -21,6 +21,9 @@ import type { TaskResponse } from '../../types/workflow';
 interface KanbanBoardProps {
     tasks: TaskResponse[];
     onStatusChange: (taskId: number, newStatus: string) => void;
+    onClaimTask?: (taskId: number) => void;
+    currentUserLevel?: number;
+    currentUserId?: number;
 }
 
 const COLUMNS = [
@@ -30,18 +33,61 @@ const COLUMNS = [
     { id: 'REJECTED', title: 'Rejected', color: '#ef4444' },
 ];
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onStatusChange }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({
+    tasks,
+    onStatusChange,
+    onClaimTask,
+    currentUserLevel,
+    currentUserId
+}) => {
     const onDragEnd = (result: DropResult) => {
         const { destination, source, draggableId } = result;
 
         if (!destination) return;
         if (destination.droppableId === source.droppableId) return;
 
-        onStatusChange(parseInt(draggableId), destination.droppableId);
+        // If moving from PENDING to IN_PROGRESS, treat as claiming
+        if (source.droppableId === 'PENDING' && destination.droppableId === 'IN_PROGRESS') {
+            if (onClaimTask) {
+                onClaimTask(parseInt(draggableId));
+            } else {
+                onStatusChange(parseInt(draggableId), destination.droppableId);
+            }
+        } else {
+            onStatusChange(parseInt(draggableId), destination.droppableId);
+        }
     };
 
     const getTasksByStatus = (status: string) => {
-        return tasks.filter(t => t.status === status);
+        return tasks.filter(t => {
+            // Filter by status first
+            if (t.status !== status) return false;
+
+            // Strict filtering for "To Do" (Pool)
+            if (status === 'PENDING') {
+                // Show task if it matches role level (if user level is known)
+                if (currentUserLevel !== undefined) {
+                    return t.requiredRoleLevel === currentUserLevel && !t.assignedTo;
+                }
+                return !t.assignedTo;
+            }
+
+            // Strict filtering for "In Progress" (My Work)
+            if (status === 'IN_PROGRESS') {
+                if (currentUserId !== undefined) {
+                    return t.assignedTo?.id === currentUserId;
+                }
+                return true;
+            }
+
+            // For Completed/Rejected, show all tasks that match user's role level by default
+            // to keep the board clean for that specific role.
+            if (currentUserLevel !== undefined) {
+                return t.requiredRoleLevel === currentUserLevel;
+            }
+
+            return true;
+        });
     };
 
     return (
@@ -87,7 +133,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onStatusChange }) => {
                                     }}
                                 >
                                     {getTasksByStatus(column.id).map((task, index) => (
-                                        <Draggable key={task.id.toString()} draggableId={task.id.toString()} index={index}>
+                                        <Draggable
+                                            key={task.id.toString()}
+                                            draggableId={task.id.toString()}
+                                            index={index}
+                                            isDragDisabled={
+                                                (task.status === 'PENDING' && currentUserLevel !== undefined && task.requiredRoleLevel !== currentUserLevel) ||
+                                                (task.status === 'IN_PROGRESS' && currentUserId !== undefined && task.assignedTo?.id !== currentUserId)
+                                            }
+                                        >
                                             {(provided: any, snapshot: any) => (
                                                 <Card
                                                     ref={provided.innerRef}
@@ -98,6 +152,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onStatusChange }) => {
                                                         borderRadius: '12px',
                                                         boxShadow: snapshot.isDragging ? '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
                                                         border: '1px solid #e5e7eb',
+                                                        opacity: (snapshot.isDragging || (task.status === 'PENDING' && currentUserLevel !== undefined && task.requiredRoleLevel !== currentUserLevel)) ? 0.8 : 1,
+                                                        bgcolor: (task.status === 'PENDING' && currentUserLevel !== undefined && task.requiredRoleLevel !== currentUserLevel) ? '#f9fafb' : '#fff',
                                                         transition: 'all 0.2s ease',
                                                         '&:hover': {
                                                             borderColor: column.color,

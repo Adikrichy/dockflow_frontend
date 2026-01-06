@@ -22,16 +22,21 @@ import KanbanBoard from '../components/workflow/KanbanBoard';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const KanbanPage: React.FC = () => {
-    const { user } = useAuth();
-    const { useCompanyTasks, updateTaskStatusMutation } = useWorkflow();
+    const { user, currentCompany } = useAuth();
+    const { useCompanyTasks, updateTaskStatusMutation, claimTaskMutation } = useWorkflow();
 
-    // In real app, we get companyId from user context
-    const companyId = (user as any)?.memberships?.[0]?.companyId || 1;
+    const companyId = currentCompany?.companyId || 1;
+    const userRoleLevel = currentCompany?.roleLevel;
+    const userId = user?.id;
 
     const { data: tasks, isLoading, refetch } = useCompanyTasks(companyId);
 
     const handleStatusChange = (taskId: number, newStatus: string) => {
         updateTaskStatusMutation.mutate({ taskId, status: newStatus });
+    };
+
+    const handleClaimTask = (taskId: number) => {
+        claimTaskMutation.mutate(taskId);
     };
 
     if (isLoading) return <LoadingSpinner />;
@@ -110,6 +115,9 @@ const KanbanPage: React.FC = () => {
             <KanbanBoard
                 tasks={tasks || []}
                 onStatusChange={handleStatusChange}
+                onClaimTask={handleClaimTask}
+                currentUserLevel={userRoleLevel}
+                currentUserId={userId}
             />
         </Container>
     );

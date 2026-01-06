@@ -65,6 +65,7 @@ const WorkflowPage: React.FC = () => {
     updateTemplateMutation,
     deleteTemplateMutation,
     useCompanyDocuments,
+    claimTaskMutation,
   } = useWorkflow();
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -76,8 +77,6 @@ const WorkflowPage: React.FC = () => {
   const [selectedTemplateForAccess, setSelectedTemplateForAccess] = useState<any | null>(null);
   const [comment, setComment] = useState('');
   const [pendingActionTask, setPendingActionTask] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
 
   // Preview States
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -137,6 +136,10 @@ const WorkflowPage: React.FC = () => {
   const handleRejectClick = (task: any) => {
     setPendingActionTask({ id: task.id, action: 'reject' });
     setComment('');
+  };
+
+  const handleClaimTask = (taskId: number) => {
+    claimTaskMutation.mutate(taskId);
   };
 
   const confirmAction = () => {
@@ -371,6 +374,7 @@ const WorkflowPage: React.FC = () => {
             onApprove={handleApproveClick}
             onReject={handleRejectClick}
             onViewDocument={handleViewDocument}
+            onClaim={handleClaimTask}
           />
         </Box>
       )}

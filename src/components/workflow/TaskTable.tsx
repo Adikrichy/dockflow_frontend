@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     Table,
     TableBody,
@@ -28,9 +28,10 @@ interface TaskTableProps {
     onApprove: (task: TaskResponse) => void;
     onReject: (task: TaskResponse) => void;
     onViewDocument: (documentId: number) => void;
+    onClaim?: (taskId: number) => void;
 }
 
-const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onViewDocument }) => {
+const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onViewDocument, onClaim }) => {
     const { selectedTaskIds, setSelectedTaskIds, toggleTaskSelection } = useWorkflowStore();
 
     const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,7 +44,8 @@ const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onVie
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'PENDING': return 'warning';
+            case 'PENDING': return 'info';
+            case 'IN_PROGRESS': return 'warning';
             case 'APPROVED': return 'success';
             case 'REJECTED': return 'error';
             default: return 'default';
@@ -131,12 +133,23 @@ const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onVie
                                 </TableCell>
                                 <TableCell align="right">
                                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                                        {task.status === 'PENDING' && onClaim && (
+                                            <Button
+                                                size="small"
+                                                variant="contained"
+                                                color="primary"
+                                                onClick={() => onClaim(task.id)}
+                                                sx={{ borderRadius: '8px', textTransform: 'none' }}
+                                            >
+                                                Claim
+                                            </Button>
+                                        )}
                                         <Button
                                             size="small"
                                             startIcon={<ApproveIcon />}
                                             color="success"
                                             onClick={() => onApprove(task)}
-                                            disabled={task.status !== 'PENDING'}
+                                            disabled={task.status !== 'IN_PROGRESS'}
                                         >
                                             Approve
                                         </Button>
@@ -145,7 +158,7 @@ const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onVie
                                             startIcon={<RejectIcon />}
                                             color="error"
                                             onClick={() => onReject(task)}
-                                            disabled={task.status !== 'PENDING'}
+                                            disabled={task.status !== 'IN_PROGRESS'}
                                         >
                                             Reject
                                         </Button>

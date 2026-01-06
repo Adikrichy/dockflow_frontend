@@ -9,12 +9,13 @@ export interface Role {
 }
 
 export const useCompanyRoles = () => {
-  const { user } = useAuth();
+  const { currentCompany } = useAuth();
+  const companyId = currentCompany?.companyId;
 
   return useQuery({
-    queryKey: ['companyRoles'],
+    queryKey: ['companyRoles', companyId],
     queryFn: async (): Promise<Role[]> => {
-      const response = await fetch('/api/company/getAllRoles', {
+      const response = await fetch(`/api/workflow/company/${companyId}/roles`, {
         credentials: 'include',
       });
 
@@ -24,7 +25,7 @@ export const useCompanyRoles = () => {
 
       return response.json();
     },
-    enabled: !!user,
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };

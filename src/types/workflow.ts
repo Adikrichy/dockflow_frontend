@@ -13,7 +13,7 @@ export interface TaskResponse {
   stepOrder: number;
   requiredRoleName: string;
   requiredRoleLevel: number;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
+  status: 'PENDING' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
   assignedTo?: {
     id: number;
     email: string;
@@ -81,7 +81,7 @@ export interface WorkflowTask {
   stepOrder: number;
   requiredRoleName: string;
   requiredRoleLevel: number;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
+  status: 'PENDING' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
   assignedTo?: {
     id: number;
     email: string;
