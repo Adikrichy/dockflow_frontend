@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workflowService } from '../services/workflowService';
+import { companyService } from '../services/companyService';
 import { toast } from 'react-toastify';
 import type {
     CreateWorkflowTemplateRequest,
     TaskApprovalRequest,
     BulkTaskRequest,
+    TaskActionRequest,
 } from '../types/workflow';
 
 export const useWorkflow = () => {
@@ -37,6 +39,12 @@ export const useWorkflow = () => {
     const useCompanyRoles = (companyId: number | null) => useQuery({
         queryKey: ['company', companyId, 'roles'],
         queryFn: () => workflowService.getCompanyRoles(companyId!),
+        enabled: !!companyId,
+    });
+
+    const useCompanyMembers = (companyId: number | null) => useQuery({
+        queryKey: ['company', companyId, 'members'],
+        queryFn: () => companyService.getCompanyMembers(),
         enabled: !!companyId,
     });
 
@@ -183,6 +191,20 @@ export const useWorkflow = () => {
         },
     });
 
+    const executeTaskActionMutation = useMutation({
+        mutationFn: ({ taskId, request }: { taskId: number; request: TaskActionRequest }) =>
+            workflowService.executeTaskAction(taskId, request),
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'tasks'] });
+            queryClient.invalidateQueries({ queryKey: ['workflow', 'my-tasks'] });
+            const actionName = variables.request.actionType.toLowerCase().replace('_', ' ');
+            toast.success(`Task ${actionName} successful`);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to execute action');
+        },
+    });
+
     return {
         useMyTasks,
         useCompanyTemplates,
@@ -200,6 +222,8 @@ export const useWorkflow = () => {
         startWorkflowMutation,
         claimTaskMutation,
         useCompanyDocuments,
-        useCompanyRoles
+        useCompanyRoles,
+        executeTaskActionMutation,
+        useCompanyMembers
     };
 };

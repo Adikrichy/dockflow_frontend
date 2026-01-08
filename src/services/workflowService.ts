@@ -8,6 +8,7 @@ import type {
   BulkTaskRequest,
   BulkOperationResponse,
   WorkflowAuditLog,
+  TaskActionRequest,
 } from '../types/workflow';
 
 export const workflowService = {
@@ -61,12 +62,12 @@ export const workflowService = {
   },
 
   async rejectTask(taskId: number, request: TaskApprovalRequest): Promise<TaskResponse> {
-    // Note: Backend might use /approve with a negative status or a dedicated /reject endpoint.
-    // Based on WorkflowController, we have /tasks/bulk-reject but not a single reject? 
-    // Wait, let me check the Controller again. 
-    // Bulk endpoints exist: /tasks/bulk-approve, /tasks/bulk-reject.
-    // Let's assume single reject is /task/{taskId}/reject if it's there, or we use bulk with one ID.
     const response = await api.post<TaskResponse>(`/workflow/task/${taskId}/reject`, request);
+    return response.data;
+  },
+
+  async executeTaskAction(taskId: number, request: TaskActionRequest): Promise<TaskResponse> {
+    const response = await api.post<TaskResponse>(`/workflow/task/${taskId}/execute`, request);
     return response.data;
   },
 

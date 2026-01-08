@@ -19,6 +19,7 @@ export interface StepNodeData {
     roleName: string;
     roleLevel: number;
     action: string;
+    allowedActions?: string[];
     onDelete?: (id: string) => void;
 }
 

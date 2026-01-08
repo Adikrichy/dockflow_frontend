@@ -144,6 +144,14 @@ function App() {
                     }
                   />
                   <Route
+                    path="/workflow/template/:templateId/edit"
+                    element={
+                      <ProtectedRoute>
+                        <WorkflowPage initialEditorOpen={true} />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/company"
                     element={
                       <ProtectedRoute>

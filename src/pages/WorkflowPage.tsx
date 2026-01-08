@@ -38,6 +38,7 @@ import {
   Search as SearchIcon,
   Check as CheckIcon,
 } from '@mui/icons-material';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useWorkflow } from '../hooks/useWorkflow';
 import { useWorkflowStore } from '../store/workflowStore';
@@ -51,7 +52,11 @@ import { useWorkflowSocket } from '../hooks/useWorkflowSocket';
 import { format } from 'date-fns';
 import { documentService } from '../services/documentService';
 
-const WorkflowPage: React.FC = () => {
+interface WorkflowPageProps {
+  initialEditorOpen?: boolean;
+}
+
+const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }) => {
   const { user, currentCompany } = useAuth();
   const { activeTab, setActiveTab, selectedTaskIds, clearSelection } = useWorkflowStore();
   const {
@@ -89,6 +94,8 @@ const WorkflowPage: React.FC = () => {
   const [selectedTemplateForStart, setSelectedTemplateForStart] = useState<any | null>(null);
   const [documentSearchTerm, setDocumentSearchTerm] = useState('');
 
+
+
   // ✅ Состояние для управления уровнями доступа
   const [allowedRoleLevels, setAllowedRoleLevels] = useState<number[]>([]);
 
@@ -104,6 +111,35 @@ const WorkflowPage: React.FC = () => {
 
   // ✅ Загрузка ролей компании
   const { data: roles = [], isLoading: rolesLoading } = useCompanyRoles();
+
+  // Update logic to handle URL params for editing
+  const { templateId } = useParams<{ templateId: string }>();
+
+  React.useEffect(() => {
+    if (initialEditorOpen && templateId) {
+      // We need to fetch the template details first if we're entering directly
+      // Since fetching happens via hooks, we might need a specific fetch here or rely on the templates list
+      // For now, let's try to find it in the templates list if available, otherwise we might need a separate query
+      // Simpler approach: Set editor open, and let the user interact or fetch specifically.
+      // But Editor needs data. 
+      // Let's modify: if templateId is present, we try to find it in `templates` list.
+      // Note: templates might not be loaded yet. 
+      // Better: use a dedicated hook or effect when templates load.
+    }
+  }, [initialEditorOpen, templateId]);
+
+  // Use a dedicated effect to open editor when templates are loaded and ID matches
+  React.useEffect(() => {
+    if (initialEditorOpen && templateId && templates) {
+      const templateToEdit = templates.find((t: any) => t.id === Number(templateId));
+      if (templateToEdit) {
+        setEditingTemplate(templateToEdit);
+        setIsEditorOpen(true);
+        // Switch to templates tab to show context
+        setActiveTab(1);
+      }
+    }
+  }, [templates, initialEditorOpen, templateId, setActiveTab]);
 
   // ✅ Фильтрация документов по названию файла
   const filteredDocuments = useMemo(() => {

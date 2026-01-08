@@ -124,6 +124,7 @@ const WorkflowEditor = ({
                         roleName: step.getAttribute('roleName') || 'Manager',
                         roleLevel: parseInt(step.getAttribute('roleLevel') || '60'),
                         action: step.getAttribute('action') || 'approve',
+                        allowedActions: step.getAttribute('allowedActions') ? step.getAttribute('allowedActions')?.split(',') : [],
                         onDelete: deleteNode
                     } as any
                 });
@@ -161,7 +162,8 @@ const WorkflowEditor = ({
         let newXml = '<workflow>\n';
         sortedNodes.forEach((node, index) => {
             const data = node.data as any;
-            newXml += `  <step order="${index + 1}" roleName="${data.roleName}" roleLevel="${data.roleLevel}" action="${data.action}"/>\n`;
+            const allowedActionsStr = data.allowedActions && data.allowedActions.length > 0 ? ` allowedActions="${data.allowedActions.join(',')}"` : '';
+            newXml += `  <step order="${index + 1}" roleName="${data.roleName}" roleLevel="${data.roleLevel}" action="${data.action}"${allowedActionsStr}/>\n`;
         });
         newXml += '</workflow>';
         setXml(newXml);
@@ -207,6 +209,7 @@ const WorkflowEditor = ({
                 roleName: 'New Role',
                 roleLevel: 50,
                 action: 'approve',
+                allowedActions: [],
                 onDelete: deleteNode
             } as any
         };
@@ -381,7 +384,7 @@ const WorkflowEditor = ({
                     </Box>
 
                     {!sidebarCollapsed && (
-                        <Box sx={{ px: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ px: 2, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', flexGrow: 1, pb: 2 }}>
                             <Box sx={{ p: 2, bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                                 <TextField
                                     label="Template Name"
@@ -595,7 +598,7 @@ const WorkflowEditor = ({
                             </IconButton>
                         </Box>
 
-                        <Box sx={{ p: 4 }}>
+                        <Box sx={{ p: 4, height: 'calc(100% - 64px)', overflowY: 'auto' }}>
                             <Stack spacing={4}>
                                 <Box>
                                     <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>ORDINAL POSITION</Typography>
@@ -685,7 +688,7 @@ const WorkflowEditor = ({
                                 </Box>
 
                                 <Box>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>REQUIRED ACTION</Typography>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>PRIMARY POSITIVE ACTION</Typography>
                                     <FormControl fullWidth variant="filled" sx={{
                                         '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
                                         '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.4)' }
@@ -696,9 +699,29 @@ const WorkflowEditor = ({
                                             disableUnderline
                                         >
                                             <MenuItem value="approve">Approve</MenuItem>
-                                            <MenuItem value="sign">Digital Signature</MenuItem>
-                                            <MenuItem value="review">Internal Review</MenuItem>
-                                            <MenuItem value="publish">Final Publish</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', mt: 1, display: 'block', fontStyle: 'italic' }}>
+                                        * Approve & Reject are always available by default
+                                    </Typography>
+                                </Box>
+
+                                <Box>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)', fontWeight: 700, mb: 1, display: 'block' }}>OPTIONAL ACTIONS</Typography>
+                                    <FormControl fullWidth variant="filled" sx={{
+                                        '& .MuiFilledInput-root': { bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)', color: 'white' },
+                                        '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.4)' }
+                                    }}>
+                                        <Select
+                                            multiple
+                                            value={(selectedNode?.data as any)?.allowedActions || []}
+                                            onChange={(e) => handleNodeDataChange('allowedActions', typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                                            disableUnderline
+                                            renderValue={(selected: any) => selected.join(', ')}
+                                        >
+                                            <MenuItem value="DELEGATE">Delegate</MenuItem>
+                                            <MenuItem value="REQUEST_CHANGES">Request Changes</MenuItem>
+                                            <MenuItem value="HOLD">Hold context</MenuItem>
                                         </Select>
                                     </FormControl>
                                 </Box>
@@ -724,8 +747,8 @@ const WorkflowEditor = ({
                         </Box>
                     </Drawer>
                 </Box>
-            </Box>
-        </Box>
+            </Box >
+        </Box >
     );
 };
 

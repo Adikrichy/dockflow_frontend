@@ -10,10 +10,12 @@ export interface WorkflowTemplate {
 
 export interface TaskResponse {
   id: number;
+  templateId?: number;
   stepOrder: number;
   requiredRoleName: string;
   requiredRoleLevel: number;
-  status: 'PENDING' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
+  status: 'PENDING' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE' | 'DELEGATED' | 'CHANGES_REQUESTED' | 'ON_HOLD';
+  availableActions?: string[];
   assignedTo?: {
     id: number;
     email: string;
@@ -81,7 +83,8 @@ export interface WorkflowTask {
   stepOrder: number;
   requiredRoleName: string;
   requiredRoleLevel: number;
-  status: 'PENDING' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE';
+  status: 'PENDING' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'OVERDUE' | 'DELEGATED' | 'CHANGES_REQUESTED' | 'ON_HOLD';
+  availableActions?: string[];
   assignedTo?: {
     id: number;
     email: string;
@@ -97,4 +100,9 @@ export interface WorkflowTask {
     amount?: number;
   };
   workflowInstanceId: number;
+}
+export interface TaskActionRequest {
+  actionType: 'DELEGATE' | 'REQUEST_CHANGES' | 'HOLD';
+  comment?: string;
+  targetUserId?: number;
 }
