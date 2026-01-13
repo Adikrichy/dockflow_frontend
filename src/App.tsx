@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
 import DashboardPage from './pages/DashboardPage';
 import DocumentsPage from './pages/DocumentsPage';
+import DocumentEditPage from './pages/DocumentEditPage';
 import WorkflowPage from './pages/WorkflowPage';
 import CompanyPage from './pages/CompanyPage';
 import ChatPage from './pages/ChatPage';
@@ -132,6 +133,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <DocumentsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/documents/:id/edit"
+                    element={
+                      <ProtectedRoute>
+                        <DocumentEditPage />
                       </ProtectedRoute>
                     }
                   />

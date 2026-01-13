@@ -44,9 +44,19 @@ const FileUpload = ({ onFileSelect, accept = '.pdf', maxSize = 10, disabled = fa
 
   const handleFileSelect = (file: File) => {
     // Validate file type
-    if (accept && !file.type.includes(accept.replace('.', '')) && !file.name.toLowerCase().endsWith(accept)) {
-      alert(`Please select a ${accept} file`);
-      return;
+    if (accept) {
+      const allowedExts = accept
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      const fileName = file.name.toLowerCase();
+      const isAllowedByExt = allowedExts.some((ext) => fileName.endsWith(ext));
+
+      if (!isAllowedByExt) {
+        alert(`Please select a ${accept} file`);
+        return;
+      }
     }
 
     // Validate file size

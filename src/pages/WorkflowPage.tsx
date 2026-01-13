@@ -501,8 +501,8 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
           ) : filteredDocuments.length === 0 ? (
             <Box sx={{ textAlign: 'center', p: 4 }}>
               <Typography color="textSecondary">
-                {documents.length === 0
-                  ? 'No documents found'
+                {documents?.length === 0
+                  ? 'No documents uploaded yet. Upload documents to start workflows.'
                   : 'No documents match your search'}
               </Typography>
             </Box>
@@ -542,7 +542,7 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
                     >
                       <TableCell sx={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         <Typography variant="body2" noWrap>
-                          {document.originalFilename || 'No name'}
+                          {document.originalFilename || document.filename || 'Untitled Document'}
                         </Typography>
                       </TableCell>
                       <TableCell>

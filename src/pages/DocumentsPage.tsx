@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { documentService } from '../services/documentService';
 import type { Document, DocumentVersion } from '../types/document';
 import Navigation from '../components/Navigation';
@@ -7,7 +8,8 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { useAuth } from '../hooks/useAuth';
 const DocumentsPage = () => {
-  const { user } = useAuth();
+  useAuth();
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [documentVersions, setDocumentVersions] = useState<DocumentVersion[]>([]);
@@ -81,9 +83,26 @@ const DocumentsPage = () => {
     }
   };
 
-  const handleRestoreVersion = async (documentId: number, versionId: number) => {
+  const handleDownloadVersion = async (documentId: number, versionNumber: number, filename: string) => {
     try {
-      await documentService.restoreVersion(documentId, versionId);
+      const blob = await documentService.getDocumentVersionFile(documentId, versionNumber);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Failed to download document version:', error);
+      alert('Failed to download document version.');
+    }
+  };
+
+  const handleRestoreVersion = async (documentId: number, versionNumber: number) => {
+    try {
+      await documentService.restoreVersion(documentId, versionNumber);
       await loadDocuments();
       setShowVersionsModal(false);
       alert('Version restored successfully!');
@@ -199,6 +218,14 @@ const DocumentsPage = () => {
       header: 'Actions',
       render: (_: any, document: Document) => (
         <div className="flex space-x-2">
+          {document.contentType?.includes('wordprocessingml.document') && (
+            <button
+              onClick={() => navigate(`/documents/${document.id}/edit`)}
+              className="text-indigo-600 hover:text-indigo-500 text-sm"
+            >
+              Edit
+            </button>
+          )}
           <button
             onClick={() => handleDownloadDocument(document.id, document.originalFilename)}
             className="text-blue-600 hover:text-blue-500 text-sm"
@@ -290,6 +317,7 @@ const DocumentsPage = () => {
       >
         <FileUpload
           onFileSelect={handleDocumentUpload}
+          accept=".pdf,.docx"
           disabled={isUploading}
         />
       </Modal>
@@ -327,14 +355,14 @@ const DocumentsPage = () => {
                 </div>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => handleDownloadDocument(selectedDocument!.id, version.originalFilename)}
+                    onClick={() => handleDownloadVersion(selectedDocument!.id, version.versionNumber, version.originalFilename)}
                     className="btn-secondary text-xs"
                   >
                     Download
                   </button>
                   {!version.isCurrent && (
                     <button
-                      onClick={() => handleRestoreVersion(selectedDocument!.id, version.id)}
+                      onClick={() => handleRestoreVersion(selectedDocument!.id, version.versionNumber)}
                       className="btn-primary text-xs"
                     >
                       Restore
