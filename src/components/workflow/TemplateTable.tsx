@@ -83,7 +83,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({
                                         >
                                             Start
                                         </Button>
-                                        {canManage && onManageAccess && (
+                                        {template.canManage && onManageAccess && (
                                             <Tooltip title="Manage Access">
                                                 <IconButton
                                                     size="small"
@@ -99,7 +99,7 @@ const TemplateTable: React.FC<TemplateTableProps> = ({
                                                 <ViewIcon fontSize="small" />
                                             </IconButton>
                                         </Tooltip>
-                                        {canManage && (
+                                        {template.canManage && (
                                             <>
                                                 <Tooltip title="Edit">
                                                     <IconButton size="small" color="primary" onClick={() => onEdit(template)}>

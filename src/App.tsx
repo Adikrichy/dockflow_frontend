@@ -16,6 +16,7 @@ import ChatPage from './pages/ChatPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import KanbanPage from './pages/KanbanPage';
+import ReportsPage from './pages/ReportsPage';
 import LoadingSpinner from './components/LoadingSpinner';
 import type { WorkflowEvent, ChatMessage } from './services/websocketService';
 
@@ -181,6 +182,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <ChatPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports"
+                    element={
+                      <ProtectedRoute>
+                        <ReportsPage />
                       </ProtectedRoute>
                     }
                   />

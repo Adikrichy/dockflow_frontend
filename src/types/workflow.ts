@@ -6,6 +6,9 @@ export interface WorkflowTemplate {
   companyId: number;
   createdAt: string;
   updatedAt: string;
+  allowedRoleLevels?: number[];
+  canStart?: boolean;
+  canManage?: boolean;
 }
 
 export interface TaskResponse {

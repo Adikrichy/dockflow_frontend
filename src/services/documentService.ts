@@ -37,15 +37,17 @@ export const documentService = {
     return response.data;
   },
 
-  async getDocumentFile(id: number): Promise<Blob> {
+  async getDocumentFile(id: number, preview: boolean = false): Promise<Blob> {
     const response = await api.get(`/documents/${id}/download`, {
+      params: { preview },
       responseType: 'blob',
     });
     return response.data;
   },
 
-  async getDocumentVersionFile(documentId: number, versionNumber: number): Promise<Blob> {
+  async getDocumentVersionFile(documentId: number, versionNumber: number, preview: boolean = false): Promise<Blob> {
     const response = await api.get(`/documents/${documentId}/versions/${versionNumber}/download`, {
+      params: { preview },
       responseType: 'blob',
     });
     return response.data;

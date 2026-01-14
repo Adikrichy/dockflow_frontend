@@ -185,7 +185,10 @@ const DashboardPage = () => {
             </div>
           </Link>
 
-          <div className="card">
+          <Link
+            to="/reports"
+            className="card hover:shadow-md transition-shadow duration-200"
+          >
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <svg className="h-8 w-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,7 +200,7 @@ const DashboardPage = () => {
                 <p className="text-sm text-gray-500">View analytics and reports</p>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* My Tasks */}

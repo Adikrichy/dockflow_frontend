@@ -100,7 +100,8 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
   const [allowedRoleLevels, setAllowedRoleLevels] = useState<number[]>([]);
 
   // Data fetching
-  const companyId = (user as any)?.memberships?.[0]?.companyId || (user as any)?.company?.id || 1;
+  // Data fetching
+  const companyId = currentCompany?.companyId || (user as any)?.memberships?.[0]?.companyId || (user as any)?.company?.id || 1;
   useWorkflowSocket(companyId);
   const { data: tasks, isLoading: tasksLoading } = useMyTasks();
   const { data: templates } = useCompanyTemplates(companyId);
@@ -204,7 +205,7 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
   };
 
   const handleSaveTemplate = (data: any) => {
-    const companyId = (user as any)?.memberships?.[0]?.companyId || (user as any)?.company?.id || 1;
+    const companyId = currentCompany?.companyId || (user as any)?.memberships?.[0]?.companyId || (user as any)?.company?.id || 1;
 
     if (editingTemplate) {
       updateTemplateMutation.mutate(
@@ -334,8 +335,15 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
       setPreviewTitle(task?.document?.filename || 'Document Preview');
       setIsPreviewOpen(true);
 
-      const blob = await documentService.getDocumentFile(documentId);
-      const url = URL.createObjectURL(blob);
+      const blob = await documentService.getDocumentFile(documentId, true);
+
+      // Force PDF type if filename ends with .pdf to ensure browser renders it inline
+      const filename = task?.document?.filename || '';
+      const finalBlob = filename.toLowerCase().endsWith('.pdf')
+        ? blob.slice(0, blob.size, 'application/pdf')
+        : blob;
+
+      const url = URL.createObjectURL(finalBlob);
       setPreviewUrl(url);
     } catch (err) {
       console.error('Error fetching document for preview:', err);
@@ -876,10 +884,10 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
           ) : previewUrl ? (
             <iframe
               src={previewUrl}
-              title="Document Preview"
               width="100%"
               height="100%"
               style={{ border: 'none' }}
+              title="Document Preview"
             />
           ) : (
             <Typography color="white">Failed to load preview</Typography>
