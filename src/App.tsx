@@ -17,6 +17,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import KanbanPage from './pages/KanbanPage';
 import ReportsPage from './pages/ReportsPage';
+import AISettingsPage from './pages/AISettingsPage';
 import LoadingSpinner from './components/LoadingSpinner';
 import type { WorkflowEvent, ChatMessage } from './services/websocketService';
 
@@ -190,6 +191,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <ReportsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/ai-settings"
+                    element={
+                      <ProtectedRoute>
+                        <AISettingsPage />
                       </ProtectedRoute>
                     }
                   />

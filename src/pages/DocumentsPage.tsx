@@ -21,6 +21,7 @@ const DocumentsPage = () => {
   const [showSignModal, setShowSignModal] = useState(false);
   const [watermarkText, setWatermarkText] = useState('');
   const [signature, setSignature] = useState('');
+  const [selectedVersionNumbers, setSelectedVersionNumbers] = useState<Record<number, number>>({});
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
@@ -144,6 +145,18 @@ const DocumentsPage = () => {
     }
   };
 
+  const handleSelectLocalVersion = (documentId: number, versionNumber: number) => {
+    setSelectedVersionNumbers(prev => ({
+      ...prev,
+      [documentId]: versionNumber
+    }));
+    setShowVersionsModal(false);
+  };
+
+  const getEffectiveVersionNumber = (document: Document) => {
+    return selectedVersionNumbers[document.id] || null;
+  };
+
   const getStatusBadge = (status: string) => {
     const statusClasses = {
       DRAFT: 'status-active',
@@ -216,52 +229,66 @@ const DocumentsPage = () => {
     {
       key: 'actions',
       header: 'Actions',
-      render: (_: any, document: Document) => (
-        <div className="flex space-x-2">
-          {document.contentType?.includes('wordprocessingml.document') && (
+      render: (_: any, document: Document) => {
+        const localVersion = getEffectiveVersionNumber(document);
+        return (
+          <div className="flex space-x-2">
+            {document.contentType?.includes('wordprocessingml.document') && (
+              <button
+                onClick={() => {
+                  const url = localVersion
+                    ? `/documents/${document.id}/edit?version=${localVersion}`
+                    : `/documents/${document.id}/edit`;
+                  navigate(url);
+                }}
+                className="text-indigo-600 hover:text-indigo-500 text-sm"
+              >
+                Edit {localVersion ? `V${localVersion}` : ''}
+              </button>
+            )}
             <button
-              onClick={() => navigate(`/documents/${document.id}/edit`)}
-              className="text-indigo-600 hover:text-indigo-500 text-sm"
+              onClick={() => {
+                if (localVersion) {
+                  handleDownloadVersion(document.id, localVersion, document.originalFilename);
+                } else {
+                  handleDownloadDocument(document.id, document.originalFilename);
+                }
+              }}
+              className="text-blue-600 hover:text-blue-500 text-sm"
             >
-              Edit
+              Download {localVersion ? `V${localVersion}` : ''}
             </button>
-          )}
-          <button
-            onClick={() => handleDownloadDocument(document.id, document.originalFilename)}
-            className="text-blue-600 hover:text-blue-500 text-sm"
-          >
-            Download
-          </button>
-          <button
-            onClick={() => handleViewVersions(document)}
-            className="text-green-600 hover:text-green-500 text-sm"
-          >
-            Versions
-          </button>
-          {!document.signed && (
-            <>
-              <button
-                onClick={() => {
-                  setSelectedDocument(document);
-                  setShowWatermarkModal(true);
-                }}
-                className="text-purple-600 hover:text-purple-500 text-sm"
-              >
-                Watermark
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedDocument(document);
-                  setShowSignModal(true);
-                }}
-                className="text-orange-600 hover:text-orange-500 text-sm"
-              >
-                Sign
-              </button>
-            </>
-          )}
-        </div>
-      )
+            <button
+              onClick={() => handleViewVersions(document)}
+              className="text-green-600 hover:text-green-500 text-sm"
+            >
+              Versions {localVersion ? `(v${localVersion})` : ''}
+            </button>
+            {!document.signed && (
+              <>
+                <button
+                  onClick={() => {
+                    setSelectedDocument(document);
+                    setShowWatermarkModal(true);
+                  }}
+                  className="text-purple-600 hover:text-purple-500 text-sm"
+                >
+                  Watermark
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedDocument(document);
+                    setShowSignModal(true);
+                  }}
+                  className="text-orange-600 hover:text-orange-500 text-sm"
+                >
+                  Sign
+                </button>
+              </>
+            )}
+          </div>
+        );
+      }
     }
   ];
 
@@ -355,6 +382,12 @@ const DocumentsPage = () => {
                 </div>
                 <div className="flex space-x-2">
                   <button
+                    onClick={() => handleSelectLocalVersion(selectedDocument!.id, version.versionNumber)}
+                    className="btn-primary text-xs"
+                  >
+                    View locally
+                  </button>
+                  <button
                     onClick={() => handleDownloadVersion(selectedDocument!.id, version.versionNumber, version.originalFilename)}
                     className="btn-secondary text-xs"
                   >
@@ -363,9 +396,9 @@ const DocumentsPage = () => {
                   {!version.isCurrent && (
                     <button
                       onClick={() => handleRestoreVersion(selectedDocument!.id, version.versionNumber)}
-                      className="btn-primary text-xs"
+                      className="btn-danger text-xs"
                     >
-                      Restore
+                      Restore (Global)
                     </button>
                   )}
                 </div>

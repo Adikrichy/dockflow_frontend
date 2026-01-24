@@ -16,6 +16,7 @@ const Navigation = ({ children }: NavigationProps) => {
     { name: 'Company', href: '/company', current: location.pathname === '/company' },
     { name: 'Kanban Board', href: '/kanban', current: location.pathname === '/kanban' },
     { name: 'Chat', href: '/chat', current: location.pathname === '/chat' },
+    { name: 'AI Settings', href: '/ai-settings', current: location.pathname === '/ai-settings' },
   ];
 
   const handleLogout = async () => {

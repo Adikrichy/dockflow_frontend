@@ -77,8 +77,8 @@ export const documentService = {
     return response.data;
   },
 
-  async startEditSession(documentId: number): Promise<{ sessionKey: string }> {
-    const response = await api.post('/document-edit/session/start', { documentId });
+  async startEditSession(documentId: number, versionNumber?: number): Promise<{ sessionKey: string }> {
+    const response = await api.post('/document-edit/session/start', { documentId, versionNumber });
     return response.data;
   },
 

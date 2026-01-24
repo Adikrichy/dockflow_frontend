@@ -33,10 +33,17 @@ function loadOnlyOfficeScript(documentServerUrl: string): Promise<void> {
   });
 }
 
+import { useSearchParams } from 'react-router-dom';
+
 const DocumentEditPage = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const documentId = useMemo(() => Number(id), [id]);
+  const version = useMemo(() => {
+    const v = searchParams.get('version');
+    return v ? Number(v) : undefined;
+  }, [searchParams]);
 
   const [sessionKey, setSessionKey] = useState<string | null>(null);
   const [config, setConfig] = useState<any | null>(null);
@@ -53,7 +60,7 @@ const DocumentEditPage = () => {
           throw new Error('Invalid document id');
         }
 
-        const session = await documentService.startEditSession(documentId);
+        const session = await documentService.startEditSession(documentId, version);
         setSessionKey(session.sessionKey);
 
         const editorConfigResp = await documentService.getEditorConfig(session.sessionKey);
@@ -75,7 +82,7 @@ const DocumentEditPage = () => {
     };
 
     run();
-  }, [documentId]);
+  }, [documentId, version]);
 
   useEffect(() => {
     if (!config || !(window as any).DocsAPI) return;
