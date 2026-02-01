@@ -39,6 +39,7 @@ import {
     InputLabel
 } from '@mui/material';
 import { useState } from 'react';
+import TaskDocumentPanel from './TaskDocumentPanel';
 
 interface TaskTableProps {
     tasks: TaskResponse[];
@@ -59,6 +60,7 @@ const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onVie
     const [actionTask, setActionTask] = useState<TaskResponse | null>(null);
     const [comment, setComment] = useState('');
     const [targetUserId, setTargetUserId] = useState<number | ''>('');
+    const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
 
     // Fetch members for delegation
     const { data: members } = useCompanyMembers(currentCompany?.companyId || null);
@@ -137,178 +139,208 @@ const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onVie
                         </TableRow>
                     ) : (
                         tasks.map((task) => (
-                            <TableRow
-                                key={task.id}
-                                hover
-                                selected={selectedTaskIds.includes(task.id)}
-                                sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                            >
-                                <TableCell padding="checkbox">
-                                    <Checkbox
-                                        checked={selectedTaskIds.includes(task.id)}
-                                        onChange={() => toggleTaskSelection(task.id)}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                            {task.document?.filename || 'Unknown Document'}
+                            <React.Fragment key={task.id}>
+                                <TableRow
+                                    hover
+                                    selected={selectedTaskIds.includes(task.id)}
+                                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                                >
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            checked={selectedTaskIds.includes(task.id)}
+                                            onChange={() => toggleTaskSelection(task.id)}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                {task.document?.filename || 'Unknown Document'}
+                                            </Typography>
+                                            <Tooltip title="Preview Document">
+                                                <span>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => task.document && onViewDocument(task.document.id)}
+                                                        sx={{ ml: 1 }}
+                                                        disabled={!task.document}
+                                                    >
+                                                        <ViewIcon fontSize="small" />
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2">
+                                            {task.requiredRoleName} (Lvl {task.requiredRoleLevel})
                                         </Typography>
-                                        <Tooltip title="View Document">
-                                            <span>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => task.document && onViewDocument(task.document.id)}
-                                                    sx={{ ml: 1 }}
-                                                    disabled={!task.document}
-                                                >
-                                                    <ViewIcon fontSize="small" />
-                                                </IconButton>
-                                            </span>
-                                        </Tooltip>
-                                    </Box>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2">
-                                        {task.requiredRoleName} (Lvl {task.requiredRoleLevel})
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>{task.stepOrder}</TableCell>
-                                <TableCell>
-                                    <Chip
-                                        label={task.status}
-                                        size="small"
-                                        color={getStatusColor(task.status) as any}
-                                        variant="outlined"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="caption" color="textSecondary">
-                                        {new Date(task.createdAt).toLocaleString()}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                        {task.status === 'PENDING' && onClaim && (
-                                            <Button
-                                                size="small"
-                                                variant="contained"
-                                                color="primary"
-                                                onClick={() => onClaim(task.id)}
-                                                sx={{ borderRadius: '8px', textTransform: 'none' }}
-                                            >
-                                                Claim
-                                            </Button>
-                                        )}
-
-                                        {/* Dynamic Actions */}
-                                        {task.status === 'IN_PROGRESS' && task.availableActions && task.availableActions.length > 0 ? (
-                                            task.availableActions.map((action) => {
-                                                let color: 'success' | 'error' | 'primary' | 'warning' | 'info' | 'secondary' = 'primary';
-                                                let icon = undefined;
-                                                let onClick = () => { };
-
-                                                switch (action) {
-                                                    case 'APPROVE':
-                                                        color = 'success';
-                                                        icon = <ApproveIcon />;
-                                                        onClick = () => onApprove(task);
-                                                        break;
-                                                    case 'REJECT':
-                                                        color = 'error';
-                                                        icon = <RejectIcon />;
-                                                        onClick = () => onReject(task);
-                                                        break;
-                                                    case 'DELEGATE':
-                                                        color = 'info';
-                                                        icon = <DelegateIcon />;
-                                                        onClick = () => handleActionClick(task, 'DELEGATE');
-                                                        break;
-                                                    case 'REQUEST_CHANGES':
-                                                        color = 'warning';
-                                                        icon = <RequestChangesIcon />;
-                                                        onClick = () => handleActionClick(task, 'REQUEST_CHANGES');
-                                                        break;
-                                                    case 'HOLD':
-                                                        color = 'secondary';
-                                                        icon = <HoldIcon />;
-                                                        onClick = () => handleActionClick(task, 'HOLD');
-                                                        break;
-                                                    default:
-                                                        break;
-                                                }
-
-                                                return (
-                                                    <Button
-                                                        key={action}
-                                                        size="small"
-                                                        startIcon={icon}
-                                                        color={color}
-                                                        onClick={onClick}
-                                                        variant="contained"
-                                                        sx={{ textTransform: 'none', borderRadius: '8px' }}
-                                                    >
-                                                        {action.replace('_', ' ')}
-                                                    </Button>
-                                                );
-                                            })
-                                        ) : (
-                                            /* Fallback for legacy tasks or if no actions defined */
-                                            <>
-                                                <Button
-                                                    size="small"
-                                                    startIcon={<ApproveIcon />}
-                                                    color="success"
-                                                    onClick={() => onApprove(task)}
-                                                    disabled={task.status !== 'IN_PROGRESS'}
-                                                >
-                                                    Approve
-                                                </Button>
-                                                <Button
-                                                    size="small"
-                                                    startIcon={<RejectIcon />}
-                                                    color="error"
-                                                    onClick={() => onReject(task)}
-                                                    disabled={task.status !== 'IN_PROGRESS'}
-                                                >
-                                                    Reject
-                                                </Button>
-                                            </>
-                                        )}
-
-                                        {/* CHANGES REQUESTED Action */}
-                                        {task.status === 'CHANGES_REQUESTED' && (
-                                            <>
-                                                {task.templateId && (
-                                                    <Button
-                                                        size="small"
-                                                        variant="contained"
-                                                        color="primary"
-                                                        onClick={() => window.open(`/workflow/template/${task.templateId}/edit`, '_blank')}
-                                                        sx={{ mr: 1, textTransform: 'none' }}
-                                                    >
-                                                        Edit Template
-                                                    </Button>
-                                                )}
+                                    </TableCell>
+                                    <TableCell>{task.stepOrder}</TableCell>
+                                    <TableCell>
+                                        <Chip
+                                            label={task.status}
+                                            size="small"
+                                            color={getStatusColor(task.status) as any}
+                                            variant="outlined"
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="caption" color="textSecondary">
+                                            {new Date(task.createdAt).toLocaleString()}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                                            {task.status === 'PENDING' && onClaim && (
                                                 <Button
                                                     size="small"
                                                     variant="contained"
-                                                    color="success"
-                                                    onClick={() => {
-                                                        executeTaskActionMutation.mutate({
-                                                            taskId: task.id,
-                                                            request: { actionType: 'RESUBMIT' as any, comment: 'Changes made, resubmitting.' }
-                                                        });
-                                                    }}
-                                                    sx={{ textTransform: 'none' }}
+                                                    color="primary"
+                                                    onClick={() => onClaim(task.id)}
+                                                    sx={{ borderRadius: '8px', textTransform: 'none' }}
                                                 >
-                                                    Resubmit
+                                                    Claim
                                                 </Button>
-                                            </>
-                                        )}
-                                    </Box>
-                                </TableCell>
-                            </TableRow>
+                                            )}
+
+                                            {/* View & Edit Button - Toggles Panel */}
+                                            {task.status === 'IN_PROGRESS' && task.document && (
+                                                <Button
+                                                    size="small"
+                                                    variant={expandedTaskId === task.id ? "contained" : "outlined"}
+                                                    color="primary"
+                                                    onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                                                    sx={{ borderRadius: '8px', textTransform: 'none' }}
+                                                >
+                                                    {expandedTaskId === task.id ? 'Close View' : 'View & Edit'}
+                                                </Button>
+                                            )}
+
+                                            {/* Dynamic Actions */}
+                                            {task.status === 'IN_PROGRESS' && task.availableActions && task.availableActions.length > 0 ? (
+                                                task.availableActions.map((action) => {
+                                                    let color: 'success' | 'error' | 'primary' | 'warning' | 'info' | 'secondary' = 'primary';
+                                                    let icon = undefined;
+                                                    let onClick = () => { };
+
+                                                    switch (action) {
+                                                        case 'APPROVE':
+                                                            color = 'success';
+                                                            icon = <ApproveIcon />;
+                                                            onClick = () => onApprove(task);
+                                                            break;
+                                                        case 'REJECT':
+                                                            color = 'error';
+                                                            icon = <RejectIcon />;
+                                                            onClick = () => onReject(task);
+                                                            break;
+                                                        case 'DELEGATE':
+                                                            color = 'info';
+                                                            icon = <DelegateIcon />;
+                                                            onClick = () => handleActionClick(task, 'DELEGATE');
+                                                            break;
+                                                        case 'REQUEST_CHANGES':
+                                                            color = 'warning';
+                                                            icon = <RequestChangesIcon />;
+                                                            onClick = () => handleActionClick(task, 'REQUEST_CHANGES');
+                                                            break;
+                                                        case 'HOLD':
+                                                            color = 'secondary';
+                                                            icon = <HoldIcon />;
+                                                            onClick = () => handleActionClick(task, 'HOLD');
+                                                            break;
+                                                        default:
+                                                            break;
+                                                    }
+
+                                                    return (
+                                                        <Button
+                                                            key={action}
+                                                            size="small"
+                                                            startIcon={icon}
+                                                            color={color}
+                                                            onClick={onClick}
+                                                            variant="contained"
+                                                            sx={{ textTransform: 'none', borderRadius: '8px' }}
+                                                        >
+                                                            {action.replace('_', ' ')}
+                                                        </Button>
+                                                    );
+                                                })
+                                            ) : (
+                                                /* Fallback for legacy tasks or if no actions defined */
+                                                <>
+                                                    <Button
+                                                        size="small"
+                                                        startIcon={<ApproveIcon />}
+                                                        color="success"
+                                                        onClick={() => onApprove(task)}
+                                                        disabled={task.status !== 'IN_PROGRESS'}
+                                                    >
+                                                        Approve
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        startIcon={<RejectIcon />}
+                                                        color="error"
+                                                        onClick={() => onReject(task)}
+                                                        disabled={task.status !== 'IN_PROGRESS'}
+                                                    >
+                                                        Reject
+                                                    </Button>
+                                                </>
+                                            )}
+
+                                            {/* CHANGES REQUESTED Action */}
+                                            {task.status === 'CHANGES_REQUESTED' && (
+                                                <>
+                                                    {task.templateId && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="contained"
+                                                            color="primary"
+                                                            onClick={() => window.open(`/workflow/template/${task.templateId}/edit`, '_blank')}
+                                                            sx={{ mr: 1, textTransform: 'none' }}
+                                                        >
+                                                            Edit Template
+                                                        </Button>
+                                                    )}
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        color="success"
+                                                        onClick={() => {
+                                                            executeTaskActionMutation.mutate({
+                                                                taskId: task.id,
+                                                                request: { actionType: 'RESUBMIT' as any, comment: 'Changes made, resubmitting.' }
+                                                            });
+                                                        }}
+                                                        sx={{ textTransform: 'none' }}
+                                                    >
+                                                        Resubmit
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </Box>
+                                    </TableCell>
+                                </TableRow>
+
+                                {/* Expanded Document Panel */}
+                                {expandedTaskId === task.id && (
+                                    <TableRow>
+                                        <TableCell colSpan={7} sx={{ p: 0, borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>
+                                            <Box sx={{ p: 2, bgcolor: '#fafafa' }}>
+                                                <TaskDocumentPanel
+                                                    task={task}
+                                                    onApprove={() => onApprove(task)}
+                                                    onReject={() => onReject(task)}
+                                                    onClose={() => setExpandedTaskId(null)}
+                                                />
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </React.Fragment>
                         ))
                     )}
                 </TableBody>

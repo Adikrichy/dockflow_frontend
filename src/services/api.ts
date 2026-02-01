@@ -39,6 +39,11 @@ export const chatService = {
   startDM: async (targetUserId: number): Promise<ChatChannelResponse> => {
     const response = await api.post(`/chat/dm/${targetUserId}`);
     return response.data;
+  },
+
+  getAiUser: async (): Promise<any> => {
+    const response = await api.get('/chat/ai');
+    return response.data;
   }
 };
 

@@ -33,6 +33,7 @@ export interface TaskResponse {
     id: number;
     filename: string;
     amount?: number;
+    contentType?: string;
   };
   workflowInstanceId: number;
 }
@@ -101,6 +102,7 @@ export interface WorkflowTask {
     id: number;
     filename: string;
     amount?: number;
+    contentType?: string;
   };
   workflowInstanceId: number;
 }

@@ -122,7 +122,7 @@ class AIServiceAPI {
         ? `http://localhost:8080/api/ai/document/${documentId}/versions/${versionId}/analyze?provider=${provider}`
         : `http://localhost:8080/api/ai/document/${documentId}/versions/${versionId}/analyze`;
 
-      const backendResponse = await axios.post<AiAnalysisResponse>(url, null,{
+      const backendResponse = await axios.post<AiAnalysisResponse>(url, null, {
         withCredentials: true,
       });
       return backendResponse.data;
@@ -136,12 +136,62 @@ class AIServiceAPI {
     try {
       const backendResponse = await axios.get<AiAnalysisResponse>(
         `http://localhost:8080/api/ai/document/${documentId}/versions/${versionId}/analysis`,
-        { withCredentials: true}
+        { withCredentials: true }
       );
       return backendResponse.data;
     } catch (error: any) {
       console.error('Error fetching analysis result:', error);
       throw new Error(error.response?.data?.detail || 'Failed to fetch analysis result');
+    }
+  }
+
+  async startDocumentReview(documentId: number, versionId: number, provider?: string, topic?: string): Promise<AiAnalysisResponse> {
+    try {
+      let url = `http://localhost:8080/api/ai/document/${documentId}/versions/${versionId}/review`;
+      const params = new URLSearchParams();
+      if (provider) params.append('provider', provider);
+      if (topic) params.append('topic', topic);
+
+      const queryString = params.toString();
+      if (queryString) url += `?${queryString}`;
+
+      const backendResponse = await axios.post<AiAnalysisResponse>(url, null, {
+        withCredentials: true,
+      });
+      return backendResponse.data;
+    } catch (error: any) {
+      console.error('Error starting document review:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to start document review');
+    }
+  }
+
+  async sendDocumentChatMessage(documentId: number, versionId: number, content: string): Promise<any> {
+    try {
+      const response = await axios.post(
+        `http://localhost:8080/api/ai/document/${documentId}/versions/${versionId}/chat`,
+        content,
+        {
+          headers: { 'Content-Type': 'text/plain' },
+          withCredentials: true
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error sending document chat message:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to send chat message');
+    }
+  }
+
+  async getDocumentChatHistory(documentId: number): Promise<any[]> {
+    try {
+      const response = await axios.get(
+        `http://localhost:8080/api/ai/document/${documentId}/chat`,
+        { withCredentials: true }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching document chat history:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to fetch chat history');
     }
   }
 }

@@ -14,6 +14,7 @@ interface Message {
     content: string;
     timestamp: string;
     edited?: boolean;
+    status?: 'sending' | 'sent' | 'error';
 }
 
 const ChatPage = () => {
@@ -28,6 +29,8 @@ const ChatPage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [members, setMembers] = useState<any[]>([]);
     const [showMembers, setShowMembers] = useState(true);
+    const [isAiThinking, setIsAiThinking] = useState(false);
+    const timeoutRef = useRef<any>(null);
 
     // Modals state
     const [showCreateChannel, setShowCreateChannel] = useState(false);
@@ -104,13 +107,24 @@ const ChatPage = () => {
 
         // Subscribe to socket with callback
         subscribeToChannel(activeChannel.id, (msg: any) => {
+            // If we receive a message from AI, stop thinking and clear timeout
+            const isAi = msg.senderName === 'AI Assistant' || msg.senderEmail === 'ai@dockflow.com';
+            if (isAi) {
+                setIsAiThinking(false);
+                if (timeoutRef.current) {
+                    clearTimeout(timeoutRef.current);
+                    timeoutRef.current = null;
+                }
+            }
+
             setMessages(prev => [...prev, {
                 id: msg.id,
                 senderId: msg.senderId,
                 senderName: msg.senderName,
                 content: msg.content,
                 timestamp: msg.timestamp,
-                edited: msg.edited
+                edited: msg.edited,
+                status: 'sent'
             }]);
         });
 
@@ -124,13 +138,64 @@ const ChatPage = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleSendMessage = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (activeChannel && inputText.trim()) {
-            sendMessage(activeChannel.id, inputText.trim());
-            setInputText('');
+    const handleSendMessage = (e?: React.FormEvent, text?: string) => {
+        if (e) e.preventDefault();
+        const content = text || inputText;
+
+        if (activeChannel && content.trim()) {
+            sendMessage(activeChannel.id, content.trim());
+
+            // If talking to AI Assistant, start thinking indicator and timeout
+            const isAiDM = activeChannel.name === 'AI Assistant' || (!activeChannel.isPublic && members.some(m => m.email === 'ai@dockflow.com'));
+
+            if (isAiDM) {
+                setIsAiThinking(true);
+
+                // Clear existing timeout if any
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+                // Set 1-minute timeout
+                timeoutRef.current = setTimeout(() => {
+                    setIsAiThinking(false);
+                    setMessages(prev => {
+                        const newMsgs = [...prev];
+                        // Find the last message from user and mark it as error if AI didn't respond
+                        for (let i = newMsgs.length - 1; i >= 0; i--) {
+                            if (newMsgs[i].senderId === user?.id) {
+                                newMsgs[i] = { ...newMsgs[i], status: 'error' };
+                                break;
+                            }
+                        }
+                        return newMsgs;
+                    });
+                }, 60000);
+            }
+
+            if (!text) setInputText('');
         }
     };
+
+    const handleResend = (content: string) => {
+        // Remove the error message and try again
+        setMessages(prev => prev.filter(m => !(m.content === content && m.status === 'error')));
+        handleSendMessage(undefined, content);
+    };
+
+    const [aiUser, setAiUser] = useState<any>(null);
+
+    // Fetch AI User info
+    useEffect(() => {
+        const fetchAiUser = async () => {
+            try {
+                const data = await chatService.getAiUser();
+                setAiUser(data);
+            } catch (err) {
+                console.error("Failed to fetch AI user", err);
+            }
+        };
+        fetchAiUser();
+    }, []);
+
 
     // Actions
     const handleCreateChannel = async () => {
@@ -232,7 +297,17 @@ const ChatPage = () => {
                                 </button>
                             </div>
                             <div className="space-y-1">
-                                {dms.length === 0 && <p className="text-gray-400 text-xs px-2 italic">No conversations</p>}
+                                {aiUser && !dms.find(dm => dm.name.includes("AI Assistant")) && (
+                                    <button
+                                        onClick={() => handleUserSelect(aiUser.id)}
+                                        className="w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-200 group text-gray-600 hover:bg-white hover:text-purple-600 hover:shadow-sm"
+                                    >
+                                        <div className="w-2 h-2 rounded-full mr-3 bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]"></div>
+                                        <span className="font-medium truncate">AI Assistant</span>
+                                        <span className="ml-auto text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-bold">AI</span>
+                                    </button>
+                                )}
+                                {dms.length === 0 && !aiUser && <p className="text-gray-400 text-xs px-2 italic">No conversations</p>}
                                 {dms.map(dm => (
                                     <button
                                         key={dm.id}
@@ -262,9 +337,17 @@ const ChatPage = () => {
                                         <span className="text-xl font-bold">{activeChannel.name.charAt(0).toUpperCase()}</span>
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-gray-800 text-lg leading-tight">
-                                            {activeChannel.isPublic ? '#' : ''}{activeChannel.name}
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-gray-800 text-lg leading-tight">
+                                                {activeChannel.isPublic ? '#' : ''}{activeChannel.name}
+                                            </h3>
+                                            {(activeChannel.name === 'AI Assistant' || members.some(m => m.email === 'ai@dockflow.com' && !activeChannel.isPublic)) && (
+                                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-purple-100">
+                                                    <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                                                    Context Active
+                                                </div>
+                                            )}
+                                        </div>
                                         <div className="flex items-center gap-1.5">
                                             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
                                             <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
@@ -318,14 +401,32 @@ const ChatPage = () => {
                                                 )}
 
                                                 <div className={`relative px-3 py-2 shadow-sm transition-all duration-200 ${isMe
-                                                    ? `bg-[#005cff] text-white ${isGroupStart ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}`
+                                                    ? `${msg.status === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-[#005cff] text-white'} ${isGroupStart ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}`
                                                     : `bg-white border border-black/5 text-gray-800 ${isGroupStart ? 'rounded-2xl rounded-tl-none' : 'rounded-2xl'}`
                                                     }`}>
 
                                                     <p className="text-[14.5px] leading-tight whitespace-pre-wrap">{msg.content}</p>
 
+                                                    {/* Error and Resend */}
+                                                    {msg.status === 'error' && (
+                                                        <div className="mt-2 flex items-center justify-between border-t border-red-100 pt-2">
+                                                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                                </svg>
+                                                                Something went wrong
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleResend(msg.content)}
+                                                                className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded-md hover:bg-red-700 transition-colors font-bold uppercase tracking-wider"
+                                                            >
+                                                                Resend
+                                                            </button>
+                                                        </div>
+                                                    )}
+
                                                     {/* Internal meta (timestamp) */}
-                                                    <div className={`mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-blue-100/70' : 'text-gray-400'}`}>
+                                                    <div className={`mt-1 flex items-center justify-end gap-1 ${isMe ? (msg.status === 'error' ? 'text-red-400' : 'text-blue-100/70') : 'text-gray-400'}`}>
                                                         <span className="text-[9px] tabular-nums font-medium">
                                                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                         </span>
@@ -345,6 +446,18 @@ const ChatPage = () => {
                                         </div>
                                     );
                                 })}
+                                {isAiThinking && (
+                                    <div className="flex justify-start mt-2">
+                                        <div className="bg-white border border-black/5 px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
+                                            <div className="flex gap-1">
+                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                                            </div>
+                                            <span className="text-[12px] font-medium text-gray-400 italic">AI Assistant is thinking...</span>
+                                        </div>
+                                    </div>
+                                )}
                                 <div ref={messagesEndRef} />
                             </div>
 
@@ -411,23 +524,30 @@ const ChatPage = () => {
                             </h2>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-1">
-                            {members.map((m: any) => (
-                                <div
-                                    key={m.id}
-                                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group relative"
-                                >
-                                    <div className="relative">
-                                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 border border-white shadow-sm flex items-center justify-center text-gray-600 font-bold text-sm uppercase">
-                                            {m.firstName.charAt(0)}{m.lastName.charAt(0)}
+                            {members.map((m: any) => {
+                                const isAi = m.email === 'ai@dockflow.com';
+                                return (
+                                    <div
+                                        key={m.id}
+                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group relative"
+                                    >
+                                        <div className="relative">
+                                            <div className={`w-9 h-9 rounded-xl border border-white shadow-sm flex items-center justify-center font-bold text-sm uppercase ${isAi
+                                                ? 'bg-gradient-to-br from-purple-100 to-purple-200 text-purple-600'
+                                                : 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600'}`}>
+                                                {isAi ? 'AI' : `${m.firstName.charAt(0)}${m.lastName.charAt(0)}`}
+                                            </div>
+                                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-green-500`}></div>
                                         </div>
-                                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-green-500`}></div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="text-sm font-semibold text-gray-800 truncate">
+                                                {m.firstName} {m.lastName} {isAi && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">BOT</span>}
+                                            </h4>
+                                            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">{m.email}</p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="text-sm font-semibold text-gray-800 truncate">{m.firstName} {m.lastName}</h4>
-                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">{m.email}</p>
-                                    </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
                 )}
@@ -477,27 +597,51 @@ const ChatPage = () => {
                                 <p className="text-gray-500 text-sm">Select a colleague to start a private conversation.</p>
                             </div>
                             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mb-6">
-                                {availableUsers.length === 0 ? (
-                                    <div className="py-12 text-center">
-                                        <p className="text-gray-400 italic">No other members found in your company.</p>
-                                    </div>
-                                ) : (
-                                    availableUsers.map((u: any) => (
-                                        <button
-                                            key={u.id}
-                                            onClick={() => handleUserSelect(u.id)}
-                                            className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all duration-200 border border-transparent hover:border-gray-100"
-                                        >
-                                            <div className="w-11 h-11 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
-                                                {u.firstName.charAt(0)}{u.lastName.charAt(0)}
+                                {(() => {
+                                    // Merge AI user into available users if fetched
+                                    let displayUsers = [...availableUsers];
+                                    if (aiUser && !displayUsers.find(u => u.email === aiUser.email)) {
+                                        // Ensure AI user has necessary fields
+                                        const aiUserFormatted = {
+                                            ...aiUser,
+                                            firstName: aiUser.firstName || 'AI',
+                                            lastName: aiUser.lastName || 'Assistant'
+                                        };
+                                        displayUsers = [aiUserFormatted, ...displayUsers];
+                                    }
+
+                                    if (displayUsers.length === 0) {
+                                        return (
+                                            <div className="py-12 text-center">
+                                                <p className="text-gray-400 italic">No other members found in your company.</p>
                                             </div>
-                                            <div className="text-left">
-                                                <h4 className="font-bold text-gray-800">{u.firstName} {u.lastName}</h4>
-                                                <p className="text-xs text-gray-400">{u.email}</p>
-                                            </div>
-                                        </button>
-                                    ))
-                                )}
+                                        );
+                                    }
+
+                                    return displayUsers.map((u: any) => {
+                                        const isAi = u.email === 'ai@dockflow.com';
+                                        return (
+                                            <button
+                                                key={u.id}
+                                                onClick={() => handleUserSelect(u.id)}
+                                                className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all duration-200 border border-transparent hover:border-gray-100"
+                                            >
+                                                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold ${isAi
+                                                    ? 'bg-purple-100 text-purple-600'
+                                                    : 'bg-indigo-50 text-indigo-600'}`}>
+                                                    {isAi ? 'AI' : `${u.firstName.charAt(0)}${u.lastName.charAt(0)}`}
+                                                </div>
+                                                <div className="text-left">
+                                                    <h4 className="font-bold text-gray-800">
+                                                        {u.firstName} {u.lastName}
+                                                        {isAi && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">ASSISTANT</span>}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-400">{u.email}</p>
+                                                </div>
+                                            </button>
+                                        )
+                                    });
+                                })()}
                             </div>
                             <button
                                 onClick={() => setShowStartDM(false)}
