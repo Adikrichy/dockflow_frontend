@@ -194,6 +194,34 @@ class AIServiceAPI {
       throw new Error(error.response?.data?.detail || 'Failed to fetch chat history');
     }
   }
+
+  // Company-specific AI Settings (from Java backend)
+  async getCompanyAiSettings(companyId: number): Promise<{ provider: string; model?: string; hasApiKey: boolean }> {
+    try {
+      const response = await axios.get(
+        `http://localhost:8080/api/company/${companyId}/ai-settings`,
+        { withCredentials: true }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching company AI settings:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch AI settings');
+    }
+  }
+
+  async updateCompanyAiSettings(companyId: number, settings: { provider?: string; apiKey?: string; model?: string }): Promise<any> {
+    try {
+      const response = await axios.put(
+        `http://localhost:8080/api/company/${companyId}/ai-settings`,
+        settings,
+        { withCredentials: true }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating company AI settings:', error);
+      throw new Error(error.response?.data?.message || 'Failed to update AI settings');
+    }
+  }
 }
 
 export const aiServiceAPI = new AIServiceAPI();

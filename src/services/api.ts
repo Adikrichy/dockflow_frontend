@@ -31,19 +31,34 @@ export const chatService = {
     return response.data;
   },
 
-  getUserDMs: async (): Promise<ChatChannelResponse[]> => {
-    const response = await api.get('/chat/dms');
+  getUserDMs: async (companyId: number): Promise<ChatChannelResponse[]> => {
+    const response = await api.get(`/chat/company/${companyId}/dms`);
     return response.data;
   },
 
-  startDM: async (targetUserId: number): Promise<ChatChannelResponse> => {
-    const response = await api.post(`/chat/dm/${targetUserId}`);
+  startDM: async (companyId: number, targetUserId: number): Promise<ChatChannelResponse> => {
+    const response = await api.post(`/chat/company/${companyId}/dm/${targetUserId}`);
     return response.data;
   },
 
   getAiUser: async (): Promise<any> => {
     const response = await api.get('/chat/ai');
     return response.data;
+  },
+
+  deleteMessage: async (messageId: number): Promise<void> => {
+    await api.delete(`/chat/message/${messageId}`);
+  },
+
+  editMessage: async (messageId: number, content: string): Promise<any> => {
+    const response = await api.patch(`/chat/message/${messageId}`, null, {
+      params: { content }
+    });
+    return response.data;
+  },
+
+  deleteChannel: async (channelId: number): Promise<void> => {
+    await api.delete(`/chat/channel/${channelId}`);
   }
 };
 

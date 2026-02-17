@@ -13,6 +13,7 @@ export interface CompanyMembership {
   description: string | null;
   roleName: string;
   roleLevel: number;
+  preferredEditor?: string;
 }
 
 export interface LoginRequest {
@@ -36,6 +37,7 @@ export interface Company {
   id: number;
   name: string;
   description?: string;
+  preferredEditor?: string;
   createdAt: string;
 }
 

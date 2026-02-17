@@ -275,6 +275,11 @@ const TaskDocumentPanel: React.FC<TaskDocumentPanelProps> = ({
             const editorConfigResp = await documentService.getEditorConfig(session.sessionKey);
             setConfig(editorConfigResp.config);
 
+            if (editorConfigResp.config.editorType === 'COLLABORA') {
+                // No script loading needed for Collabora (iframe based)
+                return;
+            }
+
             const documentServerUrl = editorConfigResp.config.documentServerUrl;
             if (!documentServerUrl) {
                 throw new Error('documentServerUrl not found in config');
@@ -306,7 +311,7 @@ const TaskDocumentPanel: React.FC<TaskDocumentPanelProps> = ({
 
     // Initialize OnlyOffice editor when config is ready
     useEffect(() => {
-        if (!config || mode !== 'edit' || !(window as any).DocsAPI) return;
+        if (!config || config.editorType === 'COLLABORA' || mode !== 'edit' || !(window as any).DocsAPI) return;
 
         const containerId = `task-onlyoffice-editor-${task.id}`;
         // Brief timeout to ensure DOM is ready and prevent potential race conditions
@@ -606,7 +611,16 @@ const TaskDocumentPanel: React.FC<TaskDocumentPanelProps> = ({
                     )}
 
                     {!isLoading && !error && mode === 'edit' && (
-                        <div id={`task-onlyoffice-editor-${task.id}`} style={{ width: '100%', height: '100%' }} />
+                        config?.editorType === 'COLLABORA' ? (
+                            <iframe
+                                src={`${config.url}&access_token=${config.token}&access_token_ttl=${config.access_token_ttl || 0}`}
+                                style={{ width: '100%', height: '100%', border: 'none' }}
+                                title="Collabora Online Editor"
+                                allow="autoplay; camera; microphone; fullscreen; display-capture; clipboard-read; clipboard-write"
+                            />
+                        ) : (
+                            <div id={`task-onlyoffice-editor-${task.id}`} style={{ width: '100%', height: '100%' }} />
+                        )
                     )}
                 </Box>
 

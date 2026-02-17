@@ -19,6 +19,8 @@ export interface StepNodeData {
     roleName: string;
     roleLevel: number;
     action: string;
+    parallel?: boolean;
+    description?: string;
     allowedActions?: string[];
     onDelete?: (id: string) => void;
 }
@@ -84,6 +86,22 @@ const CustomStepNode = ({ data, selected }: { data: StepNodeData, selected?: boo
                     <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600, letterSpacing: '0.02em' }}>
                         WORKFLOW STEP
                     </Typography>
+                    {data.parallel && (
+                        <Box sx={{
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: '4px',
+                            bgcolor: 'rgba(167, 139, 250, 0.2)', // Violet
+                            border: '1px solid rgba(167, 139, 250, 0.3)',
+                            color: '#a78bfa',
+                            fontSize: '0.6rem',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                        }}>
+                            Parallel
+                        </Box>
+                    )}
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
                     {data.onDelete && (
@@ -167,6 +185,19 @@ const CustomStepNode = ({ data, selected }: { data: StepNodeData, selected?: boo
                     </Box>
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#10b981', boxShadow: '0 0 10px #10b981' }} />
                 </Box>
+
+                {data.description && (
+                    <Box sx={{
+                        p: 1.5,
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        borderLeft: '2px solid rgba(59, 130, 246, 0.3)',
+                    }}>
+                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic', display: 'block', lineHeight: 1.4 }}>
+                            {data.description.length > 80 ? data.description.substring(0, 80) + '...' : data.description}
+                        </Typography>
+                    </Box>
+                )}
             </Box>
 
             <Handle

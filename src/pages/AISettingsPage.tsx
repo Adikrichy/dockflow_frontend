@@ -3,9 +3,12 @@ import { Box, Button, Card, CardContent, CircularProgress, FormControl, FormCont
 import { Refresh as RefreshIcon, PlayArrow as PlayIcon, Check as CheckIcon, Close as CloseIcon, Description as DocumentIcon, Analytics as AnalyticsIcon } from '@mui/icons-material';
 import { aiServiceAPI, type CurrentConfig, type ProviderStatus, type TestResult, type AiAnalysisResponse } from '../services/aiService';
 import { documentService } from '../services/documentService';
+import { useAuth } from '../hooks/useAuth';
 import type { Document, DocumentVersion } from '../types/document';
 
 const AISettingsPage: React.FC = () => {
+  const { currentCompany } = useAuth();
+  const companyId = currentCompany?.companyId;
   const [currentConfig, setCurrentConfig] = useState<CurrentConfig | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('');
@@ -27,9 +30,11 @@ const AISettingsPage: React.FC = () => {
 
   // Load initial configuration
   useEffect(() => {
-    loadConfiguration();
-    loadDocuments();
-  }, []);
+    if (companyId) {
+      loadConfiguration();
+      loadDocuments();
+    }
+  }, [companyId]);
 
   // Poll for analysis results
   useEffect(() => {
@@ -274,19 +279,23 @@ const AISettingsPage: React.FC = () => {
   };
 
   const loadConfiguration = async () => {
+    if (!companyId) return;
     setLoading(true);
     setError(null);
 
     try {
-      const [config, statuses] = await Promise.all([
+      // Load both global providers info AND company-specific settings
+      const [config, statuses, companySettings] = await Promise.all([
         aiServiceAPI.getCurrentConfig(),
-        aiServiceAPI.getProviderStatus()
+        aiServiceAPI.getProviderStatus(),
+        aiServiceAPI.getCompanyAiSettings(companyId)
       ]);
 
       setCurrentConfig(config);
       setProviderStatuses(statuses);
-      setSelectedProvider(config.currentProvider);
-      setTestBenchProvider(config.currentProvider);
+      // Use company-specific provider instead of global
+      setSelectedProvider(companySettings.provider || config.currentProvider);
+      setTestBenchProvider(companySettings.provider || config.currentProvider);
     } catch (err: any) {
       setError(err.message || 'Failed to load AI configuration');
     } finally {
@@ -295,7 +304,9 @@ const AISettingsPage: React.FC = () => {
   };
 
   const handleProviderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!companyId) return;
     const newProvider = event.target.value;
+    const oldProvider = selectedProvider;
     setSelectedProvider(newProvider);
 
     try {
@@ -303,19 +314,14 @@ const AISettingsPage: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      await aiServiceAPI.setProvider(newProvider);
-      setSuccess(`Successfully switched to ${newProvider} provider`);
-
-      // Refresh configuration
-      const updatedConfig = await aiServiceAPI.getCurrentConfig();
-      setCurrentConfig(updatedConfig);
+      // Save to company-specific settings
+      await aiServiceAPI.updateCompanyAiSettings(companyId, { provider: newProvider });
+      setSuccess(`Successfully switched to ${newProvider} provider for this company`);
 
     } catch (err: any) {
       setError(err.message || 'Failed to switch provider');
       // Revert selection if failed
-      if (currentConfig) {
-        setSelectedProvider(currentConfig.currentProvider);
-      }
+      setSelectedProvider(oldProvider);
     } finally {
       setSaving(false);
     }

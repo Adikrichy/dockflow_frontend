@@ -11,6 +11,7 @@ export interface CompanyMembership {
   description: string | null;
   roleName: string;
   roleLevel: number;
+  preferredEditor?: string;
 }
 
 export interface User {

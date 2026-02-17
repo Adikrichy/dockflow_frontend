@@ -51,6 +51,16 @@ const DocumentEditPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const meta = document.createElement('meta');
+    meta.name = 'referrer';
+    meta.content = 'no-referrer';
+    document.head.appendChild(meta);
+    return () => {
+      document.head.removeChild(meta);
+    };
+  }, []);
+
+  useEffect(() => {
     const run = async () => {
       try {
         setIsLoading(true);
@@ -66,7 +76,12 @@ const DocumentEditPage = () => {
         const editorConfigResp = await documentService.getEditorConfig(session.sessionKey);
         setConfig(editorConfigResp.config);
 
-        // ИСПРАВЛЕНО: используем documentServerUrl из конфига
+        if (editorConfigResp.config.editorType === 'COLLABORA') {
+          // No script loading needed for Collabora (iframe based)
+          return;
+        }
+
+        // OnlyOffice Flow
         const documentServerUrl = editorConfigResp.config.documentServerUrl;
         if (!documentServerUrl) {
           throw new Error('documentServerUrl not found in config');
@@ -85,7 +100,7 @@ const DocumentEditPage = () => {
   }, [documentId, version]);
 
   useEffect(() => {
-    if (!config || !(window as any).DocsAPI) return;
+    if (!config || config.editorType === 'COLLABORA' || !(window as any).DocsAPI) return;
 
     const containerId = 'onlyoffice-editor';
     const el = document.getElementById(containerId);
@@ -152,7 +167,16 @@ const DocumentEditPage = () => {
 
         {!isLoading && !error && (
           <div className="card" style={{ height: '75vh' }}>
-            <div id="onlyoffice-editor" style={{ height: '100%' }} />
+            {config?.editorType === 'COLLABORA' ? (
+              <iframe
+                src={`${config.url}&access_token=${config.token}&access_token_ttl=${config.access_token_ttl || 0}`}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Collabora Online Editor"
+                allow="autoplay; camera; microphone; fullscreen; display-capture; clipboard-read; clipboard-write"
+              />
+            ) : (
+              <div id="onlyoffice-editor" style={{ height: '100%' }} />
+            )}
           </div>
         )}
       </div>

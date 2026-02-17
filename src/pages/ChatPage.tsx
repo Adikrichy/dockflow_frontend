@@ -6,14 +6,209 @@ import type { ChatChannelResponse } from '../services/api';
 import { companyService } from '../services/companyService';
 import Navigation from '../components/Navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// --- Sub-components for Optimization ---
+
+const MarkdownComponents = {
+    code({ node, inline, className, children, ...props }: any) {
+        const match = /language-(\w+)/.exec(className || '');
+        return !inline && match ? (
+            <div className="my-3 rounded-lg overflow-hidden border border-black/10 shadow-sm text-left">
+                <div className="bg-gray-800 px-4 py-1.5 text-[10px] text-gray-400 font-mono flex justify-between items-center border-b border-white/5">
+                    <span>{match[1].toUpperCase()}</span>
+                    <span className="opacity-50 text-[9px]">Code Block</span>
+                </div>
+                <SyntaxHighlighter
+                    style={vscDarkPlus}
+                    language={match[1]}
+                    PreTag="div"
+                    customStyle={{
+                        margin: 0,
+                        padding: '1rem',
+                        fontSize: '13px',
+                        backgroundColor: '#1E1E1E'
+                    }}
+                    {...props}
+                >
+                    {String(children).replace(/\n$/, '')}
+                </SyntaxHighlighter>
+            </div>
+        ) : (
+            <code className={`${className} bg-gray-100 px-1.5 py-0.5 rounded text-[0.9em] font-mono text-pink-600`} {...props}>
+                {children}
+            </code>
+        );
+    },
+    table: ({ children }: any) => (
+        <div className="overflow-x-auto my-4 rounded-xl border border-gray-100 shadow-sm">
+            <table className="min-w-full divide-y divide-gray-100 bg-white">
+                {children}
+            </table>
+        </div>
+    ),
+    thead: ({ children }: any) => <thead className="bg-gray-50/50">{children}</thead>,
+    th: ({ children }: any) => <th className="px-4 py-2.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">{children}</th>,
+    td: ({ children }: any) => <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-50">{children}</td>,
+    ul: ({ children }: any) => <ul className="list-disc ml-6 my-3 space-y-1.5">{children}</ul>,
+    ol: ({ children }: any) => <ol className="list-decimal ml-6 my-3 space-y-1.5">{children}</ol>,
+    li: ({ children }: any) => <li className="pl-1 leading-normal">{children}</li>,
+    h1: ({ children }: any) => <h1 className="text-xl font-extrabold text-gray-900 mt-6 mb-3 border-b border-gray-100 pb-2">{children}</h1>,
+    h2: ({ children }: any) => <h2 className="text-lg font-bold text-gray-800 mt-5 mb-2.5">{children}</h2>,
+    h3: ({ children }: any) => <h3 className="text-base font-bold text-gray-700 mt-4 mb-2">{children}</h3>,
+    p: ({ children }: any) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+    hr: () => <hr className="my-6 border-gray-100" />,
+    blockquote: ({ children }: any) => (
+        <blockquote className="border-l-4 border-blue-500 bg-blue-50/50 px-4 py-2 italic my-4 rounded-r-lg text-blue-900 shadow-sm">
+            {children}
+        </blockquote>
+    )
+};
+
+const MessageItem = React.memo(({ msg, isMe, isGroupStart, getSenderColor, handleResend, handleDeleteMessage }: any) => {
+    return (
+        <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} ${isGroupStart ? 'mt-4' : 'mt-1'}`}>
+            <div className={`flex flex-col max-w-[85%] ${isMe ? 'items-end' : 'items-start'}`}>
+                {isGroupStart && !isMe && (
+                    <span className={`text-[12px] font-bold ${getSenderColor(msg.senderName)} ml-2 mb-0.5`}>
+                        {msg.senderName}
+                    </span>
+                )}
+
+                <div className={`relative px-4 py-3 shadow-sm transition-all duration-200 group ${isMe
+                    ? `${msg.status === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-[#005cff] text-white'} ${isGroupStart ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}`
+                    : `bg-white border border-black/5 text-gray-800 ${isGroupStart ? 'rounded-2xl rounded-tl-none' : 'rounded-2xl'}`
+                    }`}>
+
+                    <div className={`text-[14px] leading-[1.6] markdown-content overflow-hidden ${isMe ? 'prose-invert text-white' : 'text-gray-800'}`}>
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={MarkdownComponents}
+                        >
+                            {msg.content}
+                        </ReactMarkdown>
+                    </div>
+
+                    {msg.status === 'error' && (
+                        <div className="mt-2 flex items-center justify-between border-t border-red-100 pt-2 text-left">
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <span>Something went wrong</span>
+                            </div>
+                            <button
+                                onClick={() => handleResend(msg.content)}
+                                className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded-md hover:bg-red-700 transition-colors font-bold uppercase tracking-wider"
+                            >
+                                Resend
+                            </button>
+                        </div>
+                    )}
+
+                    <div className={`mt-1 flex items-center justify-end gap-1 ${isMe ? (msg.status === 'error' ? 'text-red-400' : 'text-blue-100/70') : 'text-gray-400'}`}>
+                        <span className="text-[9px] tabular-nums font-medium">
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {isMe && (
+                            <div className="flex -space-x-1">
+                                {msg.status === 'sending' ? (
+                                    <svg className="animate-spin h-2.5 w-2.5 text-blue-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                ) : msg.status === 'error' ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-red-300" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                ) : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-2.5 w-2.5 ${msg.status === 'sent' ? 'text-blue-100' : 'text-blue-100/50'}`} viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-2.5 w-2.5 ${msg.status === 'sent' ? 'text-blue-100' : 'text-blue-100/50'}`} viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {isMe && msg.id && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }}
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full shadow-md border border-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
+                            title="Delete message"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
+
+const ChatInput = ({ activeChannel, isConnected, onSend }: any) => {
+    const [text, setText] = useState('');
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (text.trim() && isConnected) {
+            onSend(undefined, text.trim());
+            setText('');
+        }
+    };
+
+    return (
+        <div className="p-6 bg-white border-t border-gray-100">
+            <form onSubmit={handleSubmit} className="relative flex items-center gap-4">
+                <div className="flex-1 relative group">
+                    <input
+                        type="text"
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder={`Message ${activeChannel?.isPublic ? '#' : ''}${activeChannel?.name}...`}
+                        className="w-full bg-gray-50 border-0 rounded-2xl px-6 py-4 pr-12 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all duration-200 outline-none"
+                    />
+                    <button
+                        type="button"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </button>
+                </div>
+                <button
+                    type="submit"
+                    disabled={!isConnected || !text.trim()}
+                    className="h-14 w-14 flex items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 rotate-90" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    );
+};
 
 interface Message {
     id: number;
     senderId: number;
     senderName: string;
+    senderEmail?: string;
     content: string;
     timestamp: string;
     edited?: boolean;
+    isAi?: boolean;
     status?: 'sending' | 'sent' | 'error';
 }
 
@@ -25,11 +220,11 @@ const ChatPage = () => {
     const [dms, setDMs] = useState<ChatChannelResponse[]>([]);
     const [activeChannel, setActiveChannel] = useState<ChatChannelResponse | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
-    const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [members, setMembers] = useState<any[]>([]);
     const [showMembers, setShowMembers] = useState(true);
     const [isAiThinking, setIsAiThinking] = useState(false);
+    const [isFullScreen, setIsFullScreen] = useState(false);
     const timeoutRef = useRef<any>(null);
 
     // Modals state
@@ -51,7 +246,7 @@ const ChatPage = () => {
             if (myCompany) {
                 const [companyChannels, userDMs] = await Promise.all([
                     chatService.getCompanyChannels(myCompany.id),
-                    chatService.getUserDMs()
+                    chatService.getUserDMs(myCompany.id)
                 ]);
                 setChannels(companyChannels);
                 setDMs(userDMs);
@@ -106,47 +301,87 @@ const ChatPage = () => {
         loadMembers();
 
         // Subscribe to socket with callback
-        subscribeToChannel(activeChannel.id, (msg: any) => {
-            // If we receive a message from AI, stop thinking and clear timeout
-            const isAi = msg.senderName === 'AI Assistant' || msg.senderEmail === 'ai@dockflow.com';
-            if (isAi) {
-                setIsAiThinking(false);
-                if (timeoutRef.current) {
-                    clearTimeout(timeoutRef.current);
-                    timeoutRef.current = null;
-                }
-            }
+        // Check if we are connected before subscribing
+        if (isConnected) {
+            subscribeToChannel(activeChannel.id, (msg: any) => {
+                // If we receive a message from AI, stop thinking and clear timeout
+                const isAi = msg.isAi ||
+                    (aiUser && msg.senderId === aiUser.id) ||
+                    msg.senderName === 'AI Assistant' ||
+                    msg.senderEmail === 'ai@dockflow.com';
 
-            setMessages(prev => [...prev, {
-                id: msg.id,
-                senderId: msg.senderId,
-                senderName: msg.senderName,
-                content: msg.content,
-                timestamp: msg.timestamp,
-                edited: msg.edited,
-                status: 'sent'
-            }]);
-        });
+                if (isAi) {
+                    setIsAiThinking(false);
+                    if (timeoutRef.current) {
+                        clearTimeout(timeoutRef.current);
+                        timeoutRef.current = null;
+                    }
+                }
+
+                setMessages(prev => {
+                    // Check if this message already exists (optimistic update)
+                    const existingIndex = prev.findIndex(m =>
+                        (m.id === msg.id) ||
+                        (m.status === 'sending' && m.content === msg.content && m.senderId === msg.senderId)
+                    );
+
+                    if (existingIndex !== -1) {
+                        const newMsgs = [...prev];
+                        newMsgs[existingIndex] = {
+                            ...newMsgs[existingIndex],
+                            id: msg.id,
+                            timestamp: msg.timestamp,
+                            status: 'sent',
+                            edited: msg.edited
+                        };
+                        return newMsgs;
+                    }
+
+                    return [...prev, {
+                        id: msg.id,
+                        senderId: msg.senderId,
+                        senderName: msg.senderName,
+                        content: msg.content,
+                        timestamp: msg.timestamp,
+                        edited: msg.edited,
+                        status: 'sent'
+                    }];
+                });
+            });
+        }
 
         return () => {
             unsubscribeFromChannel(activeChannel.id);
         };
-    }, [activeChannel, subscribeToChannel, unsubscribeFromChannel, clearChatMessages]);
+    }, [activeChannel, isConnected, subscribeToChannel, unsubscribeFromChannel, clearChatMessages]);
 
     // Scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleSendMessage = (e?: React.FormEvent, text?: string) => {
-        if (e) e.preventDefault();
-        const content = text || inputText;
+    const handleSendMessage = (_e?: React.FormEvent, text?: string) => {
+        const content = text || '';
 
-        if (activeChannel && content.trim()) {
+        if (activeChannel && content.trim() && isConnected) {
+            // Optimistic update
+            const tempId = Date.now();
+            const optimisticMsg: Message = {
+                id: tempId,
+                senderId: user?.id || 0,
+                senderName: user ? `${user.firstName} ${user.lastName}` : 'Me',
+                content: content.trim(),
+                timestamp: new Date().toISOString(),
+                status: 'sending'
+            };
+
+            setMessages(prev => [...prev, optimisticMsg]);
+
             sendMessage(activeChannel.id, content.trim());
 
             // If talking to AI Assistant, start thinking indicator and timeout
-            const isAiDM = activeChannel.name === 'AI Assistant' || (!activeChannel.isPublic && members.some(m => m.email === 'ai@dockflow.com'));
+            const isAiDM = activeChannel.name === 'AI Assistant' ||
+                (aiUser && activeChannel.name === `${aiUser.firstName} ${aiUser.lastName}`);
 
             if (isAiDM) {
                 setIsAiThinking(true);
@@ -170,8 +405,8 @@ const ChatPage = () => {
                     });
                 }, 60000);
             }
-
-            if (!text) setInputText('');
+        } else if (!isConnected) {
+            alert("Connection lost. Please wait for reconnection.");
         }
     };
 
@@ -179,6 +414,37 @@ const ChatPage = () => {
         // Remove the error message and try again
         setMessages(prev => prev.filter(m => !(m.content === content && m.status === 'error')));
         handleSendMessage(undefined, content);
+    };
+
+    const handleDeleteMessage = async (messageId: number) => {
+        if (!window.confirm("Are you sure you want to delete this message?")) return;
+        try {
+            await chatService.deleteMessage(messageId);
+            setMessages(prev => prev.filter(m => m.id !== messageId));
+        } catch (e) {
+            console.error("Failed to delete message", e);
+            alert("Failed to delete message");
+        }
+    };
+
+    const handleDeleteChannel = async () => {
+        if (!activeChannel) return;
+        if (!window.confirm(`Are you sure you want to delete the entire chat with "${activeChannel.name}"? This action cannot be undone.`)) return;
+
+        try {
+            await chatService.deleteChannel(activeChannel.id);
+
+            // Remove from local lists
+            setChannels(prev => prev.filter(c => c.id !== activeChannel.id));
+            setDMs(prev => prev.filter(c => c.id !== activeChannel.id));
+
+            // Clear active channel
+            setActiveChannel(null);
+            setMessages([]);
+        } catch (e) {
+            console.error("Failed to delete channel", e);
+            alert("Failed to delete channel");
+        }
     };
 
     const [aiUser, setAiUser] = useState<any>(null);
@@ -229,7 +495,9 @@ const ChatPage = () => {
 
     const handleUserSelect = async (targetUserId: number) => {
         try {
-            const newDM = await chatService.startDM(targetUserId);
+            const myCompany = await companyService.getCurrentCompany();
+            if (!myCompany) return;
+            const newDM = await chatService.startDM(myCompany.id, targetUserId);
             // Check if already in list
             setDMs(prev => {
                 if (prev.find(c => c.id === newDM.id)) return prev;
@@ -246,9 +514,9 @@ const ChatPage = () => {
 
     return (
         <Navigation>
-            <div className="flex h-[calc(100vh-140px)] bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
+            <div className={`flex bg-gray-50/50 backdrop-blur-xl ${isFullScreen ? 'fixed inset-0 z-[9999]' : 'h-[calc(100vh-120px)] rounded-[32px] overflow-hidden border border-white shadow-[0_20px_50px_rgba(0,0,0,0.1)]'}`}>
                 {/* Sidebar */}
-                <div className="w-72 bg-gray-50/50 backdrop-blur-sm border-r border-gray-100 flex flex-col">
+                <div className={`w-[320px] bg-white border-r border-gray-100 flex flex-col ${isFullScreen ? '' : ''}`}>
                     <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
                         <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Channels</h2>
                         <button
@@ -341,7 +609,7 @@ const ChatPage = () => {
                                             <h3 className="font-bold text-gray-800 text-lg leading-tight">
                                                 {activeChannel.isPublic ? '#' : ''}{activeChannel.name}
                                             </h3>
-                                            {(activeChannel.name === 'AI Assistant' || members.some(m => m.email === 'ai@dockflow.com' && !activeChannel.isPublic)) && (
+                                            {(activeChannel.name === 'AI Assistant' || (aiUser && activeChannel.name === `${aiUser.firstName} ${aiUser.lastName}`)) && (
                                                 <div className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-purple-100">
                                                     <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
                                                     Context Active
@@ -357,6 +625,30 @@ const ChatPage = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={handleDeleteChannel}
+                                        className="p-2.5 rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all duration-200"
+                                        title="Delete Chat"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => setIsFullScreen(!isFullScreen)}
+                                        className={`p-2.5 rounded-xl transition-all duration-200 text-gray-400 hover:bg-gray-50 hover:text-blue-600`}
+                                        title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+                                    >
+                                        {isFullScreen ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path d="M5 4a1 1 0 00-1 1v2a1 1 0 11-2 0V5a3 3 0 013-3h2a1 1 0 110 2H5zM15 4h-2a1 1 0 110-2h2a3 3 0 013 3v2a1 1 0 11-2 0V5a1 1 0 00-1-1zM5 16h2a1 1 0 110 2H5a3 3 0 01-3-3v-2a1 1 0 112 0v2a1 1 0 001 1zM13 16a1 1 0 110-2h2a1 1 0 001-1v-2a1 1 0 112 0v2a3 3 0 01-3 3h-2z" />
+                                            </svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12a1 1 0 01-1-1zM2 13a1 1 0 011-1h4a1 1 0 010 2H4.414l2.293 2.293a1 1 0 11-1.414 1.414L3 15.586V14a1 1 0 01-2 0v-4zm11 1a1 1 0 110-2h4a1 1 0 011 1v4a1 1 0 01-2 0v-1.586l-2.293 2.293a1 1 0 01-1.414-1.414L15.586 15H14a1 1 0 01-1-1z" clipRule="evenodd" />
+                                            </svg>
+                                        )}
+                                    </button>
                                     <button
                                         onClick={() => setShowMembers(!showMembers)}
                                         className={`p-2.5 rounded-xl transition-all duration-200 ${showMembers ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-gray-50'}`}
@@ -388,65 +680,18 @@ const ChatPage = () => {
                                     };
 
                                     return (
-                                        <div
-                                            key={msg.id || index}
-                                            className={`flex ${isMe ? 'justify-end' : 'justify-start'} ${isGroupStart ? 'mt-4' : 'mt-1'}`}
-                                        >
-                                            <div className={`flex flex-col max-w-[85%] ${isMe ? 'items-end' : 'items-start'}`}>
-                                                {/* Sender Name for others */}
-                                                {isGroupStart && !isMe && (
-                                                    <span className={`text-[12px] font-bold ${getSenderColor(msg.senderName)} ml-2 mb-0.5`}>
-                                                        {msg.senderName}
-                                                    </span>
-                                                )}
-
-                                                <div className={`relative px-3 py-2 shadow-sm transition-all duration-200 ${isMe
-                                                    ? `${msg.status === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-[#005cff] text-white'} ${isGroupStart ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}`
-                                                    : `bg-white border border-black/5 text-gray-800 ${isGroupStart ? 'rounded-2xl rounded-tl-none' : 'rounded-2xl'}`
-                                                    }`}>
-
-                                                    <p className="text-[14.5px] leading-tight whitespace-pre-wrap">{msg.content}</p>
-
-                                                    {/* Error and Resend */}
-                                                    {msg.status === 'error' && (
-                                                        <div className="mt-2 flex items-center justify-between border-t border-red-100 pt-2">
-                                                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                                </svg>
-                                                                Something went wrong
-                                                            </div>
-                                                            <button
-                                                                onClick={() => handleResend(msg.content)}
-                                                                className="text-[11px] bg-red-600 text-white px-2 py-0.5 rounded-md hover:bg-red-700 transition-colors font-bold uppercase tracking-wider"
-                                                            >
-                                                                Resend
-                                                            </button>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Internal meta (timestamp) */}
-                                                    <div className={`mt-1 flex items-center justify-end gap-1 ${isMe ? (msg.status === 'error' ? 'text-red-400' : 'text-blue-100/70') : 'text-gray-400'}`}>
-                                                        <span className="text-[9px] tabular-nums font-medium">
-                                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
-                                                        {isMe && (
-                                                            <div className="flex -space-x-1">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                </svg>
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                </svg>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <MessageItem
+                                            key={msg.id || `temp-${index}`}
+                                            msg={msg}
+                                            isMe={isMe}
+                                            isGroupStart={isGroupStart}
+                                            getSenderColor={getSenderColor}
+                                            handleResend={handleResend}
+                                            handleDeleteMessage={handleDeleteMessage}
+                                        />
                                     );
                                 })}
-                                {isAiThinking && (
+                                {isAiThinking && (activeChannel.name === 'AI Assistant' || (aiUser && activeChannel.name === `${aiUser.firstName} ${aiUser.lastName}`)) && (
                                     <div className="flex justify-start mt-2">
                                         <div className="bg-white border border-black/5 px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
                                             <div className="flex gap-1">
@@ -462,36 +707,11 @@ const ChatPage = () => {
                             </div>
 
                             {/* Input Area */}
-                            <div className="p-6 bg-white border-t border-gray-100">
-                                <form onSubmit={handleSendMessage} className="relative flex items-center gap-4">
-                                    <div className="flex-1 relative group">
-                                        <input
-                                            type="text"
-                                            value={inputText}
-                                            onChange={(e) => setInputText(e.target.value)}
-                                            placeholder={`Message ${activeChannel.isPublic ? '#' : ''}${activeChannel.name}...`}
-                                            className="w-full bg-gray-50 border-0 rounded-2xl px-6 py-4 pr-12 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all duration-200 outline-none"
-                                        />
-                                        <button
-                                            type="button"
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={!isConnected || !inputText.trim()}
-                                        className="h-14 w-14 flex items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 rotate-90" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                                        </svg>
-                                    </button>
-                                </form>
-                            </div>
+                            <ChatInput
+                                activeChannel={activeChannel}
+                                isConnected={isConnected}
+                                onSend={handleSendMessage}
+                            />
                         </>
                     ) : (
                         <div className="flex-1 flex items-center justify-center bg-gray-50/30 p-12">

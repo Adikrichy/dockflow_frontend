@@ -2,7 +2,7 @@
 import { api } from './api'; // твой axios-instance
 
 export const companyService = {
-  createCompany: async (data: any): Promise<{
+  createCompany: async (data: { name: string; description: string; useDefaultRoles: boolean; preferredEditor: string }): Promise<{
     company: any;
     keyFile: Blob;
   }> => {
@@ -27,6 +27,11 @@ export const companyService = {
       company: createResponse.company,
       keyFile: keyFile
     };
+  },
+
+  updateCompany: async (companyId: number, data: any): Promise<any> => {
+    const response = await api.patch(`/company/${companyId}`, data);
+    return response.data;
   },
 
   joinCompany: async (companyId: number): Promise<{

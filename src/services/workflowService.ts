@@ -38,10 +38,12 @@ export const workflowService = {
   },
 
   // Workflow Execution
-  async startWorkflow(templateId: number, documentId: number): Promise<WorkflowInstance> {
-    const response = await api.post<WorkflowInstance>(`/workflow/${templateId}/start`, null, {
-      params: { documentId }
-    });
+  async startWorkflow(templateId: number, documentId: number, stepAssignments?: Record<number, number>): Promise<WorkflowInstance> {
+    const request = {
+      documentId,
+      stepAssignments
+    };
+    const response = await api.post<WorkflowInstance>(`/workflow/${templateId}/start`, request);
     return response.data;
   },
 
@@ -124,6 +126,11 @@ export const workflowService = {
 
   async getCompanyRoles(companyId: number): Promise<any[]> {
     const response = await api.get<any[]>(`/workflow/company/${companyId}/roles`);
+    return response.data;
+  },
+
+  async getStepsWithUsers(templateId: number): Promise<any[]> {
+    const response = await api.get<any[]>(`/workflow/template/${templateId}/steps-with-users`);
     return response.data;
   },
 };

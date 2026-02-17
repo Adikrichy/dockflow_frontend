@@ -22,6 +22,7 @@ export interface ChatMessage {
   timestamp: string;
   type: 'TEXT' | 'FILE' | 'SYSTEM' | 'CHAT';
   edited?: boolean;
+  isAi?: boolean;
 }
 
 class WebSocketService {
@@ -128,6 +129,36 @@ class WebSocketService {
 
   unsubscribeFromChannel(channelId: number) {
     const key = `channel-${channelId}`;
+    if (this.subscriptions.has(key)) {
+      this.subscriptions.get(key).unsubscribe();
+      this.subscriptions.delete(key);
+    }
+  }
+
+  // Workflow System
+  subscribeToWorkflowSuggestions(companyId: number, callback: (data: { xml?: string; error?: string; correlationId: string }) => void) {
+    if (!this.client || !this.connected) {
+      console.warn('[WebSocketService] Still not connected, cannot subscribe to workflow suggestions');
+      return;
+    }
+
+    const topic = `/topic/company/${companyId}/workflow-suggest`;
+    console.log(`[WebSocketService] Subscribing to: ${topic}`);
+
+    const sub = this.client.subscribe(topic, (message: Message) => {
+      console.log(`[WebSocketService] MESSAGE RECEIVED on ${topic}:`, message.body);
+      try {
+        const data = JSON.parse(message.body);
+        callback(data);
+      } catch (err) {
+        console.error('[WebSocketService] Failed to parse message body:', err);
+      }
+    });
+    this.subscriptions.set(`wf-suggest-${companyId}`, sub);
+  }
+
+  unsubscribeFromWorkflowSuggestions(companyId: number) {
+    const key = `wf-suggest-${companyId}`;
     if (this.subscriptions.has(key)) {
       this.subscriptions.get(key).unsubscribe();
       this.subscriptions.delete(key);

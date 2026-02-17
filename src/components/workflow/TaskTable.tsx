@@ -45,7 +45,7 @@ interface TaskTableProps {
     tasks: TaskResponse[];
     onApprove: (task: TaskResponse) => void;
     onReject: (task: TaskResponse) => void;
-    onViewDocument: (documentId: number) => void;
+    onViewDocument: (documentId: number, filename: string, contentType: string) => void;
     onClaim?: (taskId: number) => void;
 }
 
@@ -160,7 +160,7 @@ const TaskTable: React.FC<TaskTableProps> = ({ tasks, onApprove, onReject, onVie
                                                 <span>
                                                     <IconButton
                                                         size="small"
-                                                        onClick={() => task.document && onViewDocument(task.document.id)}
+                                                        onClick={() => task.document && onViewDocument(task.document.id, task.document.filename, task.document.contentType || '')}
                                                         sx={{ ml: 1 }}
                                                         disabled={!task.document}
                                                     >
