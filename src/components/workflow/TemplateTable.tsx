@@ -39,12 +39,11 @@ const TemplateTable: React.FC<TemplateTableProps> = ({
     onEdit,
     onDelete,
     onManageAccess,
-    canManage,
 }) => {
     return (
-        <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
+        <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
             <Table sx={{ minWidth: 650 }}>
-                <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                <TableHead sx={{ bgcolor: 'action.hover' }}>
                     <TableRow>
                         <TableCell>Template Name</TableCell>
                         <TableCell>Description</TableCell>
@@ -56,20 +55,20 @@ const TemplateTable: React.FC<TemplateTableProps> = ({
                     {templates.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={4} align="center" sx={{ py: 3 }}>
-                                <Typography color="textSecondary">No workflow templates available</Typography>
+                                <Typography sx={{ color: 'text.secondary' }}>No workflow templates available</Typography>
                             </TableCell>
                         </TableRow>
                     ) : (
                         templates.map((template) => (
                             <TableRow key={template.id} hover>
-                                <TableCell sx={{ fontWeight: 500 }}>{template.name}</TableCell>
+                                <TableCell sx={{ fontWeight: 600, color: 'text.primary' }}>{template.name}</TableCell>
                                 <TableCell>
-                                    <Typography variant="body2" color="textSecondary" noWrap sx={{ maxWidth: 300 }}>
+                                    <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 300 }} noWrap>
                                         {template.description || 'No description'}
                                     </Typography>
                                 </TableCell>
                                 <TableCell>
-                                    <Typography variant="caption">
+                                    <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                                         {new Date(template.createdAt).toLocaleDateString()}
                                     </Typography>
                                 </TableCell>

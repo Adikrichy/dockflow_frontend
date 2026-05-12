@@ -1,17 +1,25 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // Добавлен useNavigate
-import { useAuth } from '../hooks/useAuth';
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useWebSocketContext } from '../App';
 import { workflowService } from '../services/workflowService';
+import { dashboardService, type DashboardStats, type DashboardActivity } from '../services/dashboardService';
 import type { WorkflowTask } from '../types/workflow';
 import LoadingSpinner from '../components/LoadingSpinner';
-import Modal from '../components/Modal'; // Оставляем Modal, удаляем Navigation
+import Modal from '../components/Modal';
+import DashboardLayout from '../components/DashboardLayout';
+import './DashboardPage.css';
 
 const DashboardPage = () => {
-  const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const { isConnected } = useWebSocketContext();
-  const navigate = useNavigate(); // Добавлен для перенаправления
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalDocuments: 0,
+    activeWorkflows: 0,
+    pendingTasks: 0
+  });
+  const [activities, setActivities] = useState<DashboardActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
@@ -21,39 +29,25 @@ const DashboardPage = () => {
   }>({ comment: '', action: 'approve' });
 
   useEffect(() => {
-    loadMyTasks();
+    loadDashboardData();
   }, []);
 
-  const loadMyTasks = async () => {
+  const loadDashboardData = async () => {
+    setIsLoading(true);
     try {
-      const myTasks = await workflowService.getMyTasks();
-      setTasks(myTasks.slice(0, 5)); // Show only first 5 tasks
+      const [myTasks, dashboardStats, recentActivities] = await Promise.all([
+        workflowService.getMyTasks(),
+        dashboardService.getStats(),
+        dashboardService.getActivities()
+      ]);
+      setTasks(myTasks.slice(0, 5));
+      setStats(dashboardStats);
+      setActivities(recentActivities);
     } catch (error) {
-      console.error('Failed to load tasks:', error);
+      console.error('Failed to load dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusClasses = {
-      PENDING: 'status-pending',
-      APPROVED: 'status-approved',
-      REJECTED: 'status-rejected',
-      SKIPPED: 'status-active',
-    };
-
-    return `status-badge ${statusClasses[status as keyof typeof statusClasses] || 'status-pending'}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   };
 
   const handleTaskAction = async (taskId: number, action: 'approve' | 'reject') => {
@@ -63,37 +57,33 @@ const DashboardPage = () => {
       } else {
         await workflowService.rejectTask(taskId, { comment: taskAction.comment });
       }
-      await loadMyTasks();
+      await loadDashboardData();
       setShowTaskModal(false);
       setSelectedTask(null);
       setTaskAction({ comment: '', action: 'approve' });
     } catch (error) {
       console.error('Failed to process task:', error);
-      alert('Failed to process task.');
     }
   };
 
-  const formatEventTime = (timestamp: string) => {
-    const date = new Date(timestamp);
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getRelativeTime = (dateString: string) => {
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Failed to logout:', error);
-    }
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return date.toLocaleDateString();
   };
 
   const handleTaskButtonClick = (task: WorkflowTask, action: 'approve' | 'reject') => {
@@ -103,208 +93,172 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">DocFlow</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Welcome, {user?.firstName} {user?.lastName}
-              </span>
-              <span className={`text-xs px-2 py-1 rounded ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                {isConnected ? 'Online' : 'Offline'}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="btn-secondary text-sm"
-              >
-                Logout
-              </button>
+    <DashboardLayout title={t('navigation.dashboard')}>
+      {/* Stats Overview */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-glow"></div>
+          <div className="stat-content">
+            <div className="stat-label">{t('landing.mockup.total')} {t('navigation.documents')}</div>
+            <div className="stat-value">
+              {stats.totalDocuments}
             </div>
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* ... остальной код quick actions без изменений ... */}
-          <Link
-            to="/documents"
-            className="card hover:shadow-md transition-shadow duration-200"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Documents</h3>
-                <p className="text-sm text-gray-500">Upload and manage documents</p>
-              </div>
+        <div className="stat-card">
+          <div className="stat-glow"></div>
+          <div className="stat-content">
+            <div className="stat-label">{t('landing.mockup.pending')}</div>
+            <div className="stat-value">
+              {stats.pendingTasks}
             </div>
-          </Link>
-
-          <Link
-            to="/workflow"
-            className="card hover:shadow-md transition-shadow duration-200"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Workflow</h3>
-                <p className="text-sm text-gray-500">Manage approval workflows</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/company"
-            className="card hover:shadow-md transition-shadow duration-200"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <svg className="h-8 w-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Company</h3>
-                <p className="text-sm text-gray-500">Manage company settings</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/reports"
-            className="card hover:shadow-md transition-shadow duration-200"
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <svg className="h-8 w-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Reports</h3>
-                <p className="text-sm text-gray-500">View analytics and reports</p>
-              </div>
-            </div>
-          </Link>
+          </div>
         </div>
+        <div className="stat-card">
+          <div className="stat-glow"></div>
+          <div className="stat-content">
+            <div className="stat-label">Active Workflows</div>
+            <div className="stat-value">
+              {stats.activeWorkflows}
+            </div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-glow"></div>
+          <div className="stat-content">
+            <div className="stat-label">System Status</div>
+            <div className="stat-value">
+              {isConnected ? 'Online' : 'Offline'}
+              <div className={`w-2.5 h-2.5 rounded-full ml-auto ${isConnected ? 'bg-lp-green shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-lp-red shadow-[0_0_8px_rgba(239,68,68,0.4)]'}`}></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* My Tasks */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">My Tasks</h2>
-            <Link
-              to="/workflow"
-              className="text-blue-600 hover:text-blue-500 text-sm font-medium"
-            >
-              View all →
+      <div className="dashboard-grid">
+        {/* Main Section - My Tasks */}
+        <div className="dashboard-section">
+          <div className="section-header">
+            <h2 className="section-title">My Tasks</h2>
+            <Link to="/workflow" className="text-[var(--lp-accent2)] text-sm hover:underline">
+              {t('common.viewAll')}
             </Link>
           </div>
-
-          {isLoading ? (
-            <LoadingSpinner />
-          ) : tasks.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No pending tasks</p>
-          ) : (
-            <div className="space-y-4">
-              {tasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="text-sm font-medium text-gray-900">
-                        {task.document.filename}
-                      </h3>
-                      <span className={getStatusBadge(task.status)}>
-                        {task.status}
-                      </span>
+          <div className="section-content">
+            {isLoading ? (
+              <div className="py-20 flex justify-center"><LoadingSpinner /></div>
+            ) : tasks.length === 0 ? (
+              <div className="py-20 text-center text-[var(--lp-text3)]">
+                <div className="text-4xl mb-4">✨</div>
+                No pending tasks. You're all caught up!
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map((task) => (
+                  <div key={task.id} className="task-item">
+                    <div className="task-icon">📄</div>
+                    <div className="task-info">
+                      <div className="task-name">{task.document.filename}</div>
+                      <div className="task-meta">
+                        <span>Required role: {task.requiredRoleName}</span>
+                        <span>•</span>
+                        <span>{formatDate(task.createdAt)}</span>
+                      </div>
                     </div>
-                    <div className="mt-1 text-sm text-gray-600">
-                      Required role: {task.requiredRoleName} (Level {task.requiredRoleLevel})
-                    </div>
-                    <div className="mt-1 text-xs text-gray-500">
-                      Assigned: {formatDate(task.createdAt)}
+                    <div className="task-actions">
+                      <button 
+                        onClick={() => handleTaskButtonClick(task, 'approve')}
+                        className="lp-btn-primary py-1.5 px-3 text-xs"
+                      >
+                        Approve
+                      </button>
+                      <button 
+                        onClick={() => handleTaskButtonClick(task, 'reject')}
+                        className="lp-btn-ghost py-1.5 px-3 text-xs hover:bg-lp-red/10 hover:text-lp-red"
+                      >
+                        Reject
+                      </button>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => handleTaskButtonClick(task, 'approve')}
-                      className="btn-primary text-xs px-3 py-1"
-                    >
-                      Approve
-                    </button>
-                    <button 
-                      onClick={() => handleTaskButtonClick(task, 'reject')}
-                      className="btn-danger text-xs px-3 py-1"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </main>
 
-      {/* Task Action Modal */}
-    
+        {/* Side Section - Recent Activity */}
+        <div className="dashboard-section">
+          <div className="section-header">
+            <h2 className="section-title">Recent Activity</h2>
+          </div>
+          <div className="section-content">
+            {isLoading ? (
+               <div className="py-10 flex justify-center"><LoadingSpinner /></div>
+            ) : activities.length === 0 ? (
+              <div className="py-10 text-center text-[var(--lp-text3)] text-sm">
+                No recent activity.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activities.map((activity) => (
+                  <div key={activity.id} className="activity-item">
+                    <div className="activity-dot" style={{ 
+                      borderColor: activity.actionType.includes('APPROVED') || activity.actionType.includes('COMPLETED') ? 'var(--lp-green)' : 
+                                  activity.actionType.includes('REJECTED') ? 'var(--lp-red)' : 'var(--lp-accent2)'
+                    }}></div>
+                    <div className="activity-content">
+                      <div className="activity-text">
+                        <b>{activity.performedBy}</b> {activity.description.toLowerCase()}
+                        {activity.documentName && <span>: <b>{activity.documentName}</b></span>}
+                      </div>
+                      <div className="activity-time">{getRelativeTime(activity.createdAt)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Task Modal */}
       <Modal 
         isOpen={showTaskModal} 
         onClose={() => setShowTaskModal(false)}
         title={taskAction.action === 'approve' ? 'Approve Task' : 'Reject Task'}
       >
-        <div className="p-6">
-          {/* Убрали заголовок h2, так как он теперь передается в title проп */}
-          <p className="text-sm text-gray-600 mb-4">
-            Document: {selectedTask?.document.filename}
+        <div className="p-1">
+          <p className="text-sm text-[var(--lp-text2)] mb-4">
+            Document: <span className="text-[var(--lp-white)] font-medium">{selectedTask?.document.filename}</span>
           </p>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Comment
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-[var(--lp-text2)] mb-2">
+              Add a comment
             </label>
             <textarea
+              className="input-field min-h-[100px]"
               value={taskAction.comment}
               onChange={(e) => setTaskAction({ ...taskAction, comment: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={3}
-              placeholder="Add a comment (optional)"
+              placeholder="Why are you taking this action?"
             />
           </div>
-          <div className="flex justify-end space-x-3">
+          <div className="flex justify-end gap-3">
             <button
               onClick={() => setShowTaskModal(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              className="lp-btn-ghost py-2 px-4"
             >
               Cancel
             </button>
             <button
               onClick={() => selectedTask && handleTaskAction(selectedTask.id, taskAction.action)}
-              className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
-                taskAction.action === 'approve' 
-                  ? 'bg-green-600 hover:bg-green-700' 
-                  : 'bg-red-600 hover:bg-red-700'
-              }`}
+              className={`lp-btn-primary py-2 px-6 ${taskAction.action === 'reject' ? 'bg-lp-red hover:bg-lp-red/90 shadow-lp-red/20' : ''}`}
             >
-              {taskAction.action === 'approve' ? 'Approve' : 'Reject'}
+              {taskAction.action === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
             </button>
           </div>
         </div>
       </Modal>
-    </div>
+    </DashboardLayout>
   );
 };
 

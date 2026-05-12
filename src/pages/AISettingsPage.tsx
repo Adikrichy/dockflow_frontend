@@ -4,10 +4,13 @@ import { Refresh as RefreshIcon, PlayArrow as PlayIcon, Check as CheckIcon, Clos
 import { aiServiceAPI, type CurrentConfig, type ProviderStatus, type TestResult, type AiAnalysisResponse } from '../services/aiService';
 import { documentService } from '../services/documentService';
 import { useAuth } from '../hooks/useAuth';
+import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 import type { Document, DocumentVersion } from '../types/document';
 
 const AISettingsPage: React.FC = () => {
   const { currentCompany } = useAuth();
+  const { t } = useTranslation();
   const companyId = currentCompany?.companyId;
   const [currentConfig, setCurrentConfig] = useState<CurrentConfig | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
@@ -18,6 +21,8 @@ const AISettingsPage: React.FC = () => {
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [verifiedProviders, setVerifiedProviders] = useState<Set<string>>(new Set());
+  const canManageSettings = (currentCompany?.roleLevel || 0) >= 80;
 
   // Document Analysis State
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -284,15 +289,23 @@ const AISettingsPage: React.FC = () => {
     setError(null);
 
     try {
-      // Load both global providers info AND company-specific settings
-      const [config, statuses, companySettings] = await Promise.all([
+      // Load global config and company-specific settings in parallel
+      // We skip getProviderStatus() here because it's slow (5s+ per provider)
+      const [config, companySettings] = await Promise.all([
         aiServiceAPI.getCurrentConfig(),
-        aiServiceAPI.getProviderStatus(),
         aiServiceAPI.getCompanyAiSettings(companyId)
       ]);
 
       setCurrentConfig(config);
-      setProviderStatuses(statuses);
+      
+      // Initialize provider statuses from config (Configuration-based status)
+      const initialStatuses: ProviderStatus[] = config.availableProviders.map(p => ({
+        provider: p,
+        // For 'mock' always available, for others check if API key/base URL is set
+        isAvailable: p === 'mock' || !!(config.providerConfigs[p]?.api_key_set || config.providerConfigs[p]?.base_url),
+      }));
+      setProviderStatuses(initialStatuses);
+
       // Use company-specific provider instead of global
       setSelectedProvider(companySettings.provider || config.currentProvider);
       setTestBenchProvider(companySettings.provider || config.currentProvider);
@@ -337,6 +350,18 @@ const AISettingsPage: React.FC = () => {
 
       if (result.status === 'working') {
         setSuccess(`${provider} provider is working correctly!`);
+        setVerifiedProviders(prev => {
+          const next = new Set(prev);
+          next.add(provider);
+          return next;
+        });
+      } else {
+        // Remove from verified if it fails
+        setVerifiedProviders(prev => {
+          const next = new Set(prev);
+          next.delete(provider);
+          return next;
+        });
       }
     } catch (err: any) {
       setError(err.message || `Failed to test ${provider} provider`);
@@ -362,6 +387,29 @@ const AISettingsPage: React.FC = () => {
     return status.isAvailable ? 'success' : 'error';
   };
 
+  const getFriendlyErrorMessage = (error: string, provider: string) => {
+    const err = error.toLowerCase();
+    
+    if (err.includes('resource_exhausted') || err.includes('quota') || err.includes('credit')) {
+      return 'Quota Exceeded / No Credits';
+    }
+    
+    if (err.includes('invalid_argument') || err.includes('api_key') || err.includes('not authorized') || err.includes('permission_denied')) {
+      return 'Invalid API Key';
+    }
+    
+    if (err.includes('econnrefused') || err.includes('failed to fetch') || err.includes('service_unavailable')) {
+      if (provider === 'ollama') return 'Ollama Offline (check port 11434)';
+      return 'Service Unavailable';
+    }
+
+    if (err.includes('model_not_found') || err.includes('not found')) {
+      return 'Model Not Found';
+    }
+
+    return error.length > 100 ? error.substring(0, 100) + '...' : error;
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -379,7 +427,8 @@ const AISettingsPage: React.FC = () => {
   }
 
   return (
-    <Box p={3}>
+    <DashboardLayout title={t('navigation.aiSettings')}>
+      <Box p={3}>
       <Typography variant="h4" gutterBottom>
         AI Service Configuration
       </Typography>
@@ -387,6 +436,12 @@ const AISettingsPage: React.FC = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {!canManageSettings && (
+        <Alert severity="warning" sx={{ mb: 3 }} variant="outlined">
+          <strong>Read-Only Mode:</strong> Only Directors (Level 80+) can change global AI providers or perform full connection refreshes.
         </Alert>
       )}
 
@@ -410,8 +465,8 @@ const AISettingsPage: React.FC = () => {
                   Active Provider:
                 </Typography>
                 <Chip
-                  label={`${getProviderIcon(currentConfig.currentProvider)} ${currentConfig.currentProvider}`}
-                  color={getProviderColor(currentConfig.currentProvider)}
+                  label={`${getProviderIcon(currentConfig!.currentProvider)} ${currentConfig!.currentProvider}`}
+                  color={getProviderColor(currentConfig!.currentProvider)}
                   size="medium"
                 />
               </Box>
@@ -422,11 +477,11 @@ const AISettingsPage: React.FC = () => {
                 Available Providers:
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {currentConfig.availableProviders.map(provider => (
+                {currentConfig!.availableProviders.map(provider => (
                   <Chip
                     key={provider}
                     label={`${getProviderIcon(provider)} ${provider}`}
-                    variant={provider === currentConfig.currentProvider ? "filled" : "outlined"}
+                    variant={provider === currentConfig!.currentProvider ? "filled" : "outlined"}
                     color={getProviderColor(provider)}
                     onClick={() => testProvider(provider)}
                     onDelete={() => testProvider(provider)}
@@ -453,9 +508,10 @@ const AISettingsPage: React.FC = () => {
                   onChange={handleProviderChange}
                   sx={{ mt: 1 }}
                 >
-                  {currentConfig.availableProviders.map(provider => {
+                  {currentConfig!.availableProviders.map(provider => {
                     const status = providerStatuses.find(p => p.provider === provider);
-                    const isAvailable = status?.isAvailable ?? false;
+                    const isConfigured = status?.isAvailable ?? false;
+                    const isVerified = verifiedProviders.has(provider);
 
                     return (
                       <FormControlLabel
@@ -466,8 +522,12 @@ const AISettingsPage: React.FC = () => {
                           <Box display="flex" alignItems="center" gap={1}>
                             <span>{getProviderIcon(provider)}</span>
                             <span>{provider.charAt(0).toUpperCase() + provider.slice(1)}</span>
-                            {isAvailable && <CheckIcon color="success" fontSize="small" />}
-                            {!isAvailable && status?.errorMessage && (
+                            {isVerified ? (
+                                <CheckIcon color="success" fontSize="small" titleAccess="Verified" />
+                            ) : isConfigured ? (
+                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'info.main', ml: 0.5, border: '1px solid rgba(0,0,0,0.1)' }} title="Configured (Not Tested)" />
+                            ) : null}
+                            {!isConfigured && status?.errorMessage && (
                               <CloseIcon color="error" fontSize="small" />
                             )}
                             {saving && selectedProvider === provider && (
@@ -475,7 +535,7 @@ const AISettingsPage: React.FC = () => {
                             )}
                           </Box>
                         }
-                        disabled={!isAvailable || saving}
+                        disabled={!isConfigured || saving || !canManageSettings}
                       />
                     );
                   })}
@@ -484,11 +544,29 @@ const AISettingsPage: React.FC = () => {
 
               <Button
                 startIcon={<RefreshIcon />}
-                onClick={loadConfiguration}
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const statuses = await aiServiceAPI.getProviderStatus();
+                    setProviderStatuses(statuses);
+                    // Update verified set based on these statuses
+                    setVerifiedProviders(prev => {
+                        const next = new Set(prev);
+                        statuses.forEach(s => {
+                            if (s.isAvailable) next.add(s.provider);
+                            else next.delete(s.provider);
+                        });
+                        return next;
+                    });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
                 sx={{ mt: 2 }}
                 variant="outlined"
+                disabled={!canManageSettings || loading}
               >
-                Refresh Status
+                Refresh Full Connection Status
               </Button>
             </CardContent>
           </Card>
@@ -503,8 +581,8 @@ const AISettingsPage: React.FC = () => {
               </Typography>
 
               <Grid container spacing={2}>
-                {currentConfig.availableProviders.map(provider => {
-                  const config = currentConfig.providerConfigs[provider];
+                {currentConfig!.availableProviders.map(provider => {
+                  const config = currentConfig!.providerConfigs[provider];
                   const status = providerStatuses.find(p => p.provider === provider);
                   const testResult = testResults[provider];
 
@@ -518,8 +596,9 @@ const AISettingsPage: React.FC = () => {
                             </Typography>
                             <Chip
                               size="small"
-                              label={status?.isAvailable ? 'Available' : 'Unavailable'}
-                              color={status?.isAvailable ? 'success' : 'error'}
+                              label={verifiedProviders.has(provider) ? 'Verified' : status?.isAvailable ? 'Configured' : 'Not Configured'}
+                              color={verifiedProviders.has(provider) ? 'success' : status?.isAvailable ? 'info' : 'default'}
+                              variant={verifiedProviders.has(provider) ? 'filled' : 'outlined'}
                             />
                           </Box>
 
@@ -536,11 +615,25 @@ const AISettingsPage: React.FC = () => {
                           {testResult && (
                             <Alert
                               severity={testResult.status === 'working' ? 'success' : 'error'}
-                              sx={{ mb: 1 }}
+                              sx={{ mb: 1, '& .MuiAlert-message': { width: '100%'} }}
                             >
-                              <Typography variant="caption">
-                                {testResult.testResponse || testResult.error}
+                              <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                {testResult.status === 'working' ? 'Connection Successful' : getFriendlyErrorMessage(testResult.error || 'Unknown Error', provider)}
                               </Typography>
+                              
+                              {testResult.testResponse && (
+                                <Typography variant="caption" sx={{ display: 'block', wordBreak: 'break-word', mt: 0.5, opacity: 0.8 }}>
+                                  {testResult.testResponse}
+                                </Typography>
+                              )}
+
+                              {testResult.status === 'error' && testResult.error && testResult.error.length > 0 && (
+                                <Box sx={{ mt: 1, pt: 1, borderTop: '1px border-solid rgba(0,0,0,0.1)' }}>
+                                   <Typography variant="caption" sx={{ display: 'block', fontStyle: 'italic', opacity: 0.7 }}>
+                                     Technical details: {testResult.error.substring(0, 150)}{testResult.error.length > 150 ? '...' : ''}
+                                   </Typography>
+                                </Box>
+                              )}
                             </Alert>
                           )}
 
@@ -587,7 +680,7 @@ const AISettingsPage: React.FC = () => {
                       displayEmpty
                     >
                       <MenuItem value="">Use Default</MenuItem>
-                      {currentConfig.availableProviders.map(provider => (
+                      {currentConfig!.availableProviders.map(provider => (
                         <MenuItem key={provider} value={provider}>
                           {getProviderIcon(provider)} {provider.charAt(0).toUpperCase() + provider.slice(1)}
                         </MenuItem>
@@ -659,9 +752,9 @@ const AISettingsPage: React.FC = () => {
 
               {!analyzing && renderAnalysisResult()}
 
-              {!analyzing && analysisResult?.status === 'SUCCESS' && !analysisResult.raw_result && !(analysisResult as any).rawResult && (
+              {!analyzing && analysisResult?.status === 'SUCCESS' && !analysisResult?.raw_result && !(analysisResult as any)?.rawResult && (
                 <Alert severity="warning" sx={{ mt: 3 }}>
-                  Analysis was successful, but detailed data is missing. Summary: {analysisResult.summary || 'N/A'}
+                  Analysis was successful, but detailed data is missing. Summary: {analysisResult?.summary || 'N/A'}
                 </Alert>
               )}
 
@@ -675,6 +768,7 @@ const AISettingsPage: React.FC = () => {
         </Grid>
       </Grid>
     </Box>
+    </DashboardLayout>
   );
 };
 

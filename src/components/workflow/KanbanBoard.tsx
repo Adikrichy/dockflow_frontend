@@ -107,13 +107,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 alignItems: 'center'
                             }}
                         >
-                            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1rem', color: '#374151' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1rem', color: 'text.primary' }}>
                                 {column.title}
                             </Typography>
                             <Chip
                                 label={getTasksByStatus(column.id).length}
                                 size="small"
-                                sx={{ bgcolor: '#e5e7eb', fontWeight: 600, color: '#4b5563' }}
+                                sx={{ bgcolor: 'action.selected', fontWeight: 600, color: 'text.secondary' }}
                             />
                         </Paper>
 
@@ -124,12 +124,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                     ref={provided.innerRef}
                                     sx={{
                                         flexGrow: 1,
-                                        bgcolor: snapshot.isDraggingOver ? 'rgba(99, 102, 241, 0.05)' : '#f9fafb',
+                                        bgcolor: snapshot.isDraggingOver ? 'action.hover' : 'background.default',
                                         borderRadius: '12px',
                                         p: 1.5,
                                         minHeight: 150,
                                         transition: 'background-color 0.2s ease',
-                                        overflowY: 'auto'
+                                        overflowY: 'auto',
+                                        border: '1px solid',
+                                        borderColor: snapshot.isDraggingOver ? 'primary.main' : 'transparent'
                                     }}
                                 >
                                     {getTasksByStatus(column.id).map((task, index) => (
@@ -150,10 +152,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                     sx={{
                                                         mb: 2,
                                                         borderRadius: '12px',
-                                                        boxShadow: snapshot.isDragging ? '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                                                        border: '1px solid #e5e7eb',
+                                                        boxShadow: snapshot.isDragging ? 4 : 1,
+                                                        border: '1px solid',
+                                                        borderColor: 'divider',
                                                         opacity: (snapshot.isDragging || (task.status === 'PENDING' && currentUserLevel !== undefined && task.requiredRoleLevel !== currentUserLevel)) ? 0.8 : 1,
-                                                        bgcolor: (task.status === 'PENDING' && currentUserLevel !== undefined && task.requiredRoleLevel !== currentUserLevel) ? '#f9fafb' : '#fff',
+                                                        bgcolor: (task.status === 'PENDING' && currentUserLevel !== undefined && task.requiredRoleLevel !== currentUserLevel) ? 'action.hover' : 'background.paper',
                                                         transition: 'all 0.2s ease',
                                                         '&:hover': {
                                                             borderColor: column.color,
@@ -184,7 +187,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                             sx={{
                                                                 fontWeight: 600,
                                                                 mb: 1,
-                                                                color: '#1f2937',
+                                                                color: 'text.primary',
                                                                 display: '-webkit-box',
                                                                 WebkitLineClamp: 2,
                                                                 WebkitBoxOrient: 'vertical',
@@ -195,8 +198,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                         </Typography>
 
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                                                            <TimeIcon sx={{ fontSize: '0.9rem', color: '#6b7280' }} />
-                                                            <Typography variant="caption" sx={{ color: '#6b7280' }}>
+                                                            <TimeIcon sx={{ fontSize: '0.9rem', color: 'text.secondary' }} />
+                                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                                                                 {new Date(task.createdAt).toLocaleDateString()}
                                                             </Typography>
                                                         </Box>
@@ -210,8 +213,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                                                 width: 28,
                                                                                 height: 28,
                                                                                 fontSize: '0.75rem',
-                                                                                bgcolor: '#3b82f6',
-                                                                                border: '2px solid #fff'
+                                                                                bgcolor: 'primary.main',
+                                                                                border: '2px solid',
+                                                                                borderColor: 'background.paper'
                                                                             }}
                                                                         >
                                                                             {task.assignedTo.email[0].toUpperCase()}
@@ -223,9 +227,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                                             sx={{
                                                                                 width: 28,
                                                                                 height: 28,
-                                                                                bgcolor: '#f3f4f6',
-                                                                                color: '#9ca3af',
-                                                                                border: '2px solid #fff'
+                                                                                bgcolor: 'action.hover',
+                                                                                color: 'text.disabled',
+                                                                                border: '2px solid',
+                                                                                borderColor: 'background.paper'
                                                                             }}
                                                                         >
                                                                             ?
@@ -233,7 +238,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                                     </Tooltip>
                                                                 )}
                                                             </Box>
-                                                            <Typography variant="caption" sx={{ color: '#9ca3af', fontWeight: 500 }}>
+                                                            <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 500 }}>
                                                                 ID: #{task.id}
                                                             </Typography>
                                                         </Box>

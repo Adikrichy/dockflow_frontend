@@ -8,8 +8,9 @@ import {
     Button,
     Paper,
     InputBase,
-    // Grid и Alpha удалены
 } from '@mui/material';
+import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 import {
     Dashboard as DashboardIcon,
     Search as SearchIcon,
@@ -23,6 +24,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const KanbanPage: React.FC = () => {
     const { user, currentCompany } = useAuth();
+    const { t } = useTranslation();
     const { useCompanyTasks, updateTaskStatusMutation, claimTaskMutation } = useWorkflow();
 
     const companyId = currentCompany?.companyId || 1;
@@ -42,7 +44,8 @@ const KanbanPage: React.FC = () => {
     if (isLoading) return <LoadingSpinner />;
 
     return (
-        <Container maxWidth={false} sx={{ mt: 4, mb: 4, px: { xs: 2, lg: 4 } }}>
+        <DashboardLayout title={t('navigation.kanban')}>
+            <Container maxWidth={false} sx={{ mt: 0, mb: 4, px: { xs: 2, lg: 4 } }}>
             {/* Header Section */}
             <Box sx={{ mb: 4 }}>
                 <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 1 }}>
@@ -55,10 +58,10 @@ const KanbanPage: React.FC = () => {
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                     <Box>
-                        <Typography variant="h4" sx={{ fontWeight: 800, color: '#111827', mb: 1 }}>
+                        <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mb: 1 }}>
                             Workflow Pipeline
                         </Typography>
-                        <Typography variant="body1" sx={{ color: '#6b7280' }}>
+                        <Typography variant="body1" sx={{ color: 'text.secondary' }}>
                             Manage and track all document approval tasks across the company.
                         </Typography>
                     </Box>
@@ -82,22 +85,24 @@ const KanbanPage: React.FC = () => {
                     p: 1.5,
                     mb: 4,
                     borderRadius: '16px',
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid',
+                    borderColor: 'divider',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 2
+                    gap: 2,
+                    bgcolor: 'background.paper'
                 }}
             >
                 <Box sx={{
                     display: 'flex',
                     alignItems: 'center',
                     flexGrow: 1,
-                    bgcolor: '#f3f4f6',
+                    bgcolor: 'action.hover',
                     px: 2,
                     py: 1,
                     borderRadius: '10px'
                 }}>
-                    <SearchIcon sx={{ color: '#9ca3af', mr: 1 }} />
+                    <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
                     <InputBase
                         placeholder="Search tasks, documents or users..."
                         sx={{ flexGrow: 1, fontSize: '0.9rem' }}
@@ -105,7 +110,7 @@ const KanbanPage: React.FC = () => {
                 </Box>
                 <Button
                     startIcon={<FilterIcon />}
-                    sx={{ color: '#4b5563', textTransform: 'none', fontWeight: 600 }}
+                    sx={{ color: 'text.secondary', textTransform: 'none', fontWeight: 600 }}
                 >
                     Filters
                 </Button>
@@ -119,7 +124,8 @@ const KanbanPage: React.FC = () => {
                 currentUserLevel={userRoleLevel}
                 currentUserId={userId}
             />
-        </Container>
+            </Container>
+        </DashboardLayout>
     );
 };
 

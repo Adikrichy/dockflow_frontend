@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { documentService } from '../services/documentService';
 import type { Document, DocumentVersion } from '../types/document';
-import Navigation from '../components/Navigation';
+import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 import FileUpload from '../components/FileUpload';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
-import { useAuth } from '../hooks/useAuth';
+import './DocumentsPage.css';
+
 const DocumentsPage = () => {
-  useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -34,7 +36,6 @@ const DocumentsPage = () => {
       setDocuments(userDocuments);
     } catch (error) {
       console.error('Failed to load documents:', error);
-      // For demo purposes, show empty list if API fails
       setDocuments([]);
     } finally {
       setIsLoading(false);
@@ -115,7 +116,6 @@ const DocumentsPage = () => {
 
   const handleAddWatermark = async () => {
     if (!selectedDocument || !watermarkText.trim()) return;
-
     try {
       await documentService.addWatermark(selectedDocument.id, watermarkText);
       await loadDocuments();
@@ -131,7 +131,6 @@ const DocumentsPage = () => {
 
   const handleSignDocument = async () => {
     if (!selectedDocument || !signature.trim()) return;
-
     try {
       await documentService.signDocument(selectedDocument.id, signature);
       await loadDocuments();
@@ -232,7 +231,7 @@ const DocumentsPage = () => {
       render: (_: any, document: Document) => {
         const localVersion = getEffectiveVersionNumber(document);
         return (
-          <div className="flex space-x-2">
+          <div className="action-buttons">
             {document.contentType?.includes('wordprocessingml.document') && (
               <button
                 onClick={() => {
@@ -241,7 +240,7 @@ const DocumentsPage = () => {
                     : `/documents/${document.id}/edit`;
                   navigate(url);
                 }}
-                className="text-indigo-600 hover:text-indigo-500 text-sm"
+                className="action-link edit"
               >
                 Edit {localVersion ? `V${localVersion}` : ''}
               </button>
@@ -254,13 +253,13 @@ const DocumentsPage = () => {
                   handleDownloadDocument(document.id, document.originalFilename);
                 }
               }}
-              className="text-blue-600 hover:text-blue-500 text-sm"
+              className="action-link download"
             >
-              Download {localVersion ? `V${localVersion}` : ''}
+              Download
             </button>
             <button
               onClick={() => handleViewVersions(document)}
-              className="text-green-600 hover:text-green-500 text-sm"
+              className="action-link versions"
             >
               Versions {localVersion ? `(v${localVersion})` : ''}
             </button>
@@ -271,7 +270,7 @@ const DocumentsPage = () => {
                     setSelectedDocument(document);
                     setShowWatermarkModal(true);
                   }}
-                  className="text-purple-600 hover:text-purple-500 text-sm"
+                  className="action-link watermark"
                 >
                   Watermark
                 </button>
@@ -280,7 +279,7 @@ const DocumentsPage = () => {
                     setSelectedDocument(document);
                     setShowSignModal(true);
                   }}
-                  className="text-orange-600 hover:text-orange-500 text-sm"
+                  className="action-link sign"
                 >
                   Sign
                 </button>
@@ -293,39 +292,44 @@ const DocumentsPage = () => {
   ];
 
   return (
-    <Navigation>
+    <DashboardLayout title={t('navigation.documents')}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Document Management</h1>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="btn-primary"
-          >
-            Upload Document
-          </button>
-        </div>
-
-        {/* Search and Filter */}
-        <div className="card">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Search documents..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="input-field"
-              />
+        {/* Toolbar */}
+        <div className="documents-toolbar">
+          <div className="search-wrapper">
+             <div className="search-icon">
+              <svg 
+                width="16" height="16" viewBox="0 0 24 24" fill="none" 
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
             </div>
-            <div className="text-sm text-gray-500">
+            <input
+              type="text"
+              placeholder="Search documents..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
+          
+          <div className="toolbar-actions">
+            <span className="doc-count">
               {filteredDocuments.length} document{filteredDocuments.length !== 1 ? 's' : ''}
-            </div>
+            </span>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="lp-btn-primary py-2 px-6"
+            >
+              Upload Document
+            </button>
           </div>
         </div>
 
         {/* Documents Table */}
-        <div className="card">
+        <div className="documents-table-container">
           <DataTable
             data={filteredDocuments}
             columns={documentColumns}
@@ -358,24 +362,24 @@ const DocumentsPage = () => {
       >
         <div className="space-y-4">
           {documentVersions.map((version) => (
-            <div key={version.id} className="border border-gray-200 rounded-lg p-4">
+            <div key={version.id} className="border border-[var(--lp-border)] rounded-lg p-4 bg-[var(--lp-surface2)]">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3">
-                    <h3 className="text-sm font-medium text-gray-900">
+                    <h3 className="text-sm font-medium text-[var(--lp-white)]">
                       Version {version.versionNumber}
                     </h3>
                     {version.isCurrent && (
                       <span className="status-badge status-approved">Current</span>
                     )}
                     {version.hasWatermark && (
-                      <span className="status-badge bg-blue-100 text-blue-800">Watermarked</span>
+                      <span className="status-badge bg-blue-100/10 text-blue-400">Watermarked</span>
                     )}
                     {version.isSigned && (
                       <span className="status-badge status-approved">Signed</span>
                     )}
                   </div>
-                  <div className="mt-1 text-sm text-gray-600">
+                  <div className="mt-1 text-sm text-[var(--lp-text3)]">
                     {version.changeDescription && `${version.changeDescription} • `}
                     {formatFileSize(version.fileSize)} • {formatDate(version.createdAt)} by {version.createdBy}
                   </div>
@@ -383,20 +387,20 @@ const DocumentsPage = () => {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => handleSelectLocalVersion(selectedDocument!.id, version.versionNumber)}
-                    className="btn-primary text-xs"
+                    className="lp-btn-primary text-xs py-1 px-3"
                   >
                     View locally
                   </button>
                   <button
                     onClick={() => handleDownloadVersion(selectedDocument!.id, version.versionNumber, version.originalFilename)}
-                    className="btn-secondary text-xs"
+                    className="lp-btn-ghost text-xs py-1 px-3"
                   >
                     Download
                   </button>
                   {!version.isCurrent && (
                     <button
                       onClick={() => handleRestoreVersion(selectedDocument!.id, version.versionNumber)}
-                      className="btn-danger text-xs"
+                      className="lp-btn-ghost text-xs py-1 px-3 hover:bg-red-500/10 hover:text-red-500"
                     >
                       Restore (Global)
                     </button>
@@ -415,11 +419,11 @@ const DocumentsPage = () => {
         title="Add Watermark"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--lp-text2)]">
             Add a watermark to {selectedDocument?.originalFilename}
           </p>
           <div>
-            <label htmlFor="watermark" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="watermark" className="block text-sm font-medium text-[var(--lp-text2)] mb-2">
               Watermark Text
             </label>
             <input
@@ -431,23 +435,23 @@ const DocumentsPage = () => {
               placeholder="Enter watermark text"
             />
           </div>
-          <div className="flex space-x-4">
-            <button
-              onClick={handleAddWatermark}
-              disabled={!watermarkText.trim()}
-              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add Watermark
-            </button>
-            <button
+          <div className="flex justify-end space-x-3">
+             <button
               onClick={() => {
                 setShowWatermarkModal(false);
                 setWatermarkText('');
                 setSelectedDocument(null);
               }}
-              className="btn-secondary"
+              className="lp-btn-ghost py-2 px-4"
             >
               Cancel
+            </button>
+            <button
+              onClick={handleAddWatermark}
+              disabled={!watermarkText.trim()}
+              className="lp-btn-primary py-2 px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add Watermark
             </button>
           </div>
         </div>
@@ -460,11 +464,11 @@ const DocumentsPage = () => {
         title="Sign Document"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--lp-text2)]">
             Add your digital signature to {selectedDocument?.originalFilename}
           </p>
           <div>
-            <label htmlFor="signature" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="signature" className="block text-sm font-medium text-[var(--lp-text2)] mb-2">
               Signature
             </label>
             <input
@@ -476,28 +480,28 @@ const DocumentsPage = () => {
               placeholder="Enter your signature"
             />
           </div>
-          <div className="flex space-x-4">
-            <button
-              onClick={handleSignDocument}
-              disabled={!signature.trim()}
-              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sign Document
-            </button>
-            <button
+          <div className="flex justify-end space-x-3">
+             <button
               onClick={() => {
                 setShowSignModal(false);
                 setSignature('');
                 setSelectedDocument(null);
               }}
-              className="btn-secondary"
+              className="lp-btn-ghost py-2 px-4"
             >
               Cancel
+            </button>
+            <button
+              onClick={handleSignDocument}
+              disabled={!signature.trim()}
+              className="lp-btn-primary py-2 px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sign Document
             </button>
           </div>
         </div>
       </Modal>
-    </Navigation>
+    </DashboardLayout>
   );
 };
 

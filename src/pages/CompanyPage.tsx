@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { companyService } from '../services/companyService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import Navigation from '../components/Navigation';
+import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
 import KeyUploadModal from '../components/KeyUploadModal';
 
@@ -14,9 +15,10 @@ const CompanyPage = () => {
     refreshAuth,
     user
   } = useAuth();
+  const { t } = useTranslation();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showJoinForm, setShowJoinForm] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [showKeyUploadModal, setShowKeyUploadModal] = useState(false);
   const [showRoleManagement, setShowRoleManagement] = useState(false);
   const [showCreateRole, setShowCreateRole] = useState(false);
@@ -28,13 +30,19 @@ const CompanyPage = () => {
     name: '',
     description: '',
     useDefaultRoles: true,
-    preferredEditor: 'ONLYOFFICE'
+    preferredEditor: 'ONLYOFFICE',
+    p12Password: ''
+  });
+  const [inviteFormData, setInviteFormData] = useState({
+    email: '',
+    roleId: '' as number | string,
+    channel: 'EMAIL' as 'EMAIL' | 'TELEGRAM'
   });
   const [roleFormData, setRoleFormData] = useState({
     roleName: '',
     level: 50,
+    canViewReports: false,
   });
-  const [joinCompanyId, setJoinCompanyId] = useState('');
   const [roles, setRoles] = useState<any[]>([]);
   const [companyMembers, setCompanyMembers] = useState<any[]>([]);
   const [error, setError] = useState('');
@@ -52,14 +60,6 @@ const CompanyPage = () => {
     description: '',
     preferredEditor: 'ONLYOFFICE'
   });
-
-  // New state for enhanced Join modal
-  const [joinMode, setJoinMode] = useState<'id' | 'search' | 'list'>('id');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [browseResults, setBrowseResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isBrowsing, setIsBrowsing] = useState(false);
 
   const downloadKeyFile = (keyFile: Blob, companyId: number, companyName: string) => {
     const url = window.URL.createObjectURL(keyFile);
@@ -87,7 +87,7 @@ const CompanyPage = () => {
       await refreshAuth();
 
       setShowCreateForm(false);
-      setFormData({ name: '', description: '', useDefaultRoles: true, preferredEditor: 'ONLYOFFICE' });
+      setFormData({ name: '', description: '', useDefaultRoles: true, preferredEditor: 'ONLYOFFICE', p12Password: '' });
 
       // Download the key file
       // If company.id is 0, try to find it from refreshed companies
@@ -117,70 +117,27 @@ const CompanyPage = () => {
     }
   };
 
-  const handleJoinCompany = async (companyId: number) => {
+  const handleInviteMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCompany) return;
     setError('');
     setIsSubmitting(true);
 
     try {
-      const joinResponse = await companyService.joinCompany(companyId);
-      await refreshAuth();
-      setShowJoinForm(false);
-      setJoinCompanyId('');
-
-      // Find the company name for download - might not be in companies yet, so use a generic name
-      const company = companies.find(c => c.companyId === companyId);
-      const companyName = company ? company.companyName : `Company ${companyId}`;
-      downloadKeyFile(joinResponse.keyFile, companyId, companyName);
+      await companyService.inviteMember(currentCompany.companyId, {
+        email: inviteFormData.email,
+        roleId: Number(inviteFormData.roleId),
+        channel: inviteFormData.channel
+      });
+      alert('Invitation sent successfully!');
+      setShowInviteModal(false);
+      setInviteFormData({ email: '', roleId: '', channel: 'EMAIL' });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to join company');
+      setError(err.response?.data?.message || 'Failed to send invitation');
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const handleJoinCompanySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const companyId = parseInt(joinCompanyId, 10);
-    if (isNaN(companyId)) {
-      setError('Please enter a valid company ID');
-      return;
-    }
-    await handleJoinCompany(companyId);
-  };
-
-  const handleSearchCompanies = async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    setError('');
-    try {
-      const results = await companyService.searchCompanies(searchQuery);
-      setSearchResults(results);
-    } catch (err: any) {
-      setError('Failed to search companies');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleBrowseAll = async () => {
-    setIsBrowsing(true);
-    setError('');
-    try {
-      const results = await companyService.listCompanies();
-      setBrowseResults(results);
-    } catch (err: any) {
-      setError('Failed to load companies');
-    } finally {
-      setIsBrowsing(false);
-    }
-  };
-
-  // Switch to list mode and load all
-  useEffect(() => {
-    if (showJoinForm && joinMode === 'list') {
-      handleBrowseAll();
-    }
-  }, [showJoinForm, joinMode]);
 
   const handleEnterCompanyClick = (companyId: number) => {
     const company = companies.find(c => c.companyId === companyId);
@@ -190,11 +147,11 @@ const CompanyPage = () => {
     }
   };
 
-  const handleEnterCompanyWithKey = async (keyFile: File) => {
+  const handleEnterCompanyWithKey = async (keyFile: File, password: string) => {
     if (!selectedCompanyForKey) return;
 
     try {
-      await companyService.enterCompany(selectedCompanyForKey.companyId, keyFile);
+      await companyService.enterCompany(selectedCompanyForKey.companyId, keyFile, password);
       await refreshAuth();
       setShowKeyUploadModal(false);
       setSelectedCompanyForKey(null);
@@ -271,9 +228,13 @@ const CompanyPage = () => {
     setIsSubmitting(true);
 
     try {
-      await companyService.createRole(roleFormData);
+      await companyService.createRole({
+        roleName: roleFormData.roleName,
+        level: roleFormData.level,
+        canViewReports: roleFormData.canViewReports,
+      });
       setShowCreateRole(false);
-      setRoleFormData({ roleName: '', level: 50 });
+      setRoleFormData({ roleName: '', level: 50, canViewReports: false });
       await loadRolesAndMembers(); // Reload roles
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create role');
@@ -287,6 +248,7 @@ const CompanyPage = () => {
     setRoleFormData({
       roleName: role.name,
       level: role.level,
+      canViewReports: role.canViewReports || false,
     });
     setShowEditRole(true);
   };
@@ -299,10 +261,14 @@ const CompanyPage = () => {
     setIsSubmitting(true);
 
     try {
-      await companyService.updateRole(editingRole.id, roleFormData); // ← реализуй этот метод в companyService
+      await companyService.updateRole(editingRole.id, {
+        roleName: roleFormData.roleName,
+        level: roleFormData.level,
+        canViewReports: roleFormData.canViewReports,
+      });
       setShowEditRole(false);
       setEditingRole(null);
-      setRoleFormData({ roleName: '', level: 50 });
+      setRoleFormData({ roleName: '', level: 50, canViewReports: false });
       await loadRolesAndMembers();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to update role');
@@ -366,14 +332,14 @@ const CompanyPage = () => {
   }
 
   return (
-    <Navigation>
+    <DashboardLayout title={t('navigation.company')}>
       <div className="max-w-5xl mx-auto pb-12">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">
+            <h1 className="text-4xl font-extrabold text-lp-text tracking-tight">
               Company Management
             </h1>
-            <p className="text-gray-500 mt-1">Manage your organizations, roles, and collaboration settings.</p>
+            <p className="text-lp-text2 mt-1">Manage your organizations, roles, and collaboration settings.</p>
           </div>
           {currentCompany && (
             <div className="flex gap-3">
@@ -384,16 +350,7 @@ const CompanyPage = () => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                New
-              </button>
-              <button
-                onClick={() => setShowJoinForm(true)}
-                className="btn-secondary flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-                Join
+                New Company
               </button>
             </div>
           )}
@@ -401,14 +358,14 @@ const CompanyPage = () => {
 
         {/* Empty State: No current company and no companies joined */}
         {!currentCompany && companies.length === 0 && (
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-12 text-center mb-10 transform transition-all hover:scale-[1.01]">
+          <div className="bg-lp-surface rounded-2xl shadow-xl border border-lp-border p-12 text-center mb-10 transform transition-all hover:scale-[1.01]">
             <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to DocFlow</h2>
-            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+            <h2 className="text-2xl font-bold text-lp-text mb-2">Welcome to DocFlow</h2>
+            <p className="text-lp-text2 mb-8 max-w-md mx-auto">
               You are not currently a member of any company. Start by creating a new organization or joining an existing one.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -421,22 +378,13 @@ const CompanyPage = () => {
                 </svg>
                 Create New Company
               </button>
-              <button
-                onClick={() => setShowJoinForm(true)}
-                className="btn-secondary px-8 py-3 text-lg flex items-center justify-center gap-2"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                Join Existing
-              </button>
             </div>
           </div>
         )}
 
         {/* Current Company Section */}
         {currentCompany && (
-          <div className="relative overflow-hidden bg-white rounded-2xl shadow-xl border border-gray-100 mb-10">
+          <div className="relative overflow-hidden bg-lp-surface rounded-2xl shadow-xl border border-lp-border mb-10">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600"></div>
             <div className="p-8">
               <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
@@ -446,7 +394,7 @@ const CompanyPage = () => {
                       <span className="text-2xl font-bold">{currentCompany.companyName.charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                      <h2 className="text-3xl font-bold text-gray-900 leading-tight">
+                      <h2 className="text-3xl font-bold text-lp-text leading-tight">
                         {currentCompany.companyName}
                       </h2>
                       <div className="flex items-center gap-2 mt-1">
@@ -463,20 +411,20 @@ const CompanyPage = () => {
                   </div>
 
                   {currentCompany.description && (
-                    <p className="text-gray-600 text-lg mb-6 leading-relaxed max-w-2xl">
+                    <p className="text-lp-text2 text-lg mb-6 leading-relaxed max-w-2xl">
                       {currentCompany.description}
                     </p>
                   )}
 
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex items-center gap-4">
-                    <div className="p-2 bg-white rounded-lg shadow-sm">
-                      <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="bg-lp-surface2 rounded-xl p-4 border border-lp-border flex items-center gap-4">
+                    <div className="p-2 bg-lp-surface rounded-lg shadow-sm">
+                      <svg className="w-6 h-6 text-lp-text2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 font-medium uppercase tracking-wider">Your Personal Identity</p>
-                      <p className="text-gray-900 font-semibold text-lg">
+                      <p className="text-sm text-lp-text2 font-medium uppercase tracking-wider">Your Personal Identity</p>
+                      <p className="text-lp-text font-semibold text-lg">
                         {currentCompany.roleName} <span className="text-gray-400 font-normal ml-2">Level {currentCompany.roleLevel}</span>
                       </p>
                     </div>
@@ -487,8 +435,17 @@ const CompanyPage = () => {
                   {currentCompany.roleLevel >= 100 && (
                     <>
                       <button
+                        onClick={() => setShowInviteModal(true)}
+                        className="btn-primary w-full justify-center flex items-center gap-2 shadow-lg shadow-blue-200 mb-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        Invite Member
+                      </button>
+                      <button
                         onClick={handleEditCompanyClick}
-                        className="btn-secondary w-full justify-center flex items-center gap-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-blue-700 transition-colors"
+                        className="btn-secondary w-full justify-center flex items-center gap-2 border-lp-border hover:border-blue-300 hover:bg-blue-50 text-blue-700 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -498,7 +455,7 @@ const CompanyPage = () => {
                       </button>
                       <button
                         onClick={() => setShowRoleManagement(true)}
-                        className="btn-secondary w-full justify-center flex items-center gap-2 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-indigo-700 transition-colors"
+                        className="btn-secondary w-full justify-center flex items-center gap-2 border-lp-border hover:border-indigo-300 hover:bg-indigo-50 text-indigo-700 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -507,7 +464,7 @@ const CompanyPage = () => {
                       </button>
                     </>
                   )}
-                  <div className="lg:mt-4 lg:pt-4 lg:border-t lg:border-gray-100 w-full">
+                  <div className="lg:mt-4 lg:pt-4 lg:border-t lg:border-lp-border w-full">
                     <button
                       onClick={handleExitCompany}
                       className="btn-danger w-full justify-center flex items-center gap-2 bg-rose-50 border-rose-100 text-rose-700 hover:bg-rose-600 hover:text-white transition-all duration-200"
@@ -527,23 +484,23 @@ const CompanyPage = () => {
         {/* Switch Organization Section */}
         {companies.length > 0 && (!currentCompany || companies.length > 1) && (
           <div className="mb-10">
-            <h3 className="text-xl font-bold text-gray-900 mb-4 px-1">Your Organizations</h3>
+            <h3 className="text-xl font-bold text-lp-text mb-4 px-1">Your Organizations</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {companies
                 .filter(company => !currentCompany || company.companyId !== currentCompany.companyId)
                 .map((company) => (
                   <div
                     key={company.companyId}
-                    className="group bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-default"
+                    className="group bg-lp-surface rounded-xl p-5 border border-lp-border shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-default"
                   >
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h4 className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+                          <h4 className="text-lg font-bold text-lp-text truncate group-hover:text-blue-700 transition-colors">
                             {company.companyName}
                           </h4>
                         </div>
-                        <p className="text-sm text-gray-500 flex items-center gap-1.5 line-clamp-1 mb-3">
+                        <p className="text-sm text-lp-text2 flex items-center gap-1.5 line-clamp-1 mb-3">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
@@ -551,7 +508,7 @@ const CompanyPage = () => {
                         </p>
                         <button
                           onClick={() => handleEnterCompanyClick(company.companyId)}
-                          className="w-full btn-secondary text-sm py-2 bg-gray-50 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all flex items-center justify-center gap-2"
+                          className="w-full btn-secondary text-sm py-2 bg-lp-surface2 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all flex items-center justify-center gap-2"
                         >
                           Switch
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -571,7 +528,7 @@ const CompanyPage = () => {
           <div className="flex justify-center gap-4 mb-10">
             <button
               onClick={() => setShowCreateForm(true)}
-              className="text-gray-500 hover:text-blue-600 font-medium flex items-center gap-2"
+              className="text-lp-text2 hover:text-blue-600 font-medium flex items-center gap-2"
             >
               Create another company
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -580,82 +537,78 @@ const CompanyPage = () => {
             </button>
             <span className="text-gray-300">|</span>
             <button
-              onClick={() => setShowJoinForm(true)}
-              className="text-gray-500 hover:text-blue-600 font-medium flex items-center gap-2"
+              className="hidden" 
             >
               Join another
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
             </button>
           </div>
         )}
 
         {/* Platform Features Grid */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-gray-50 px-8 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">Enterprise Capabilities</h2>
+        <div className="bg-lp-surface rounded-2xl shadow-sm border border-lp-border overflow-hidden">
+          <div className="bg-lp-surface2 px-8 py-4 border-b border-lp-border flex items-center justify-between">
+            <h2 className="text-lg font-bold text-lp-text">Enterprise Capabilities</h2>
             <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">DocFlow Infrastructure</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-200">
-            <div className="bg-white p-8 group hover:bg-blue-50/30 transition-colors">
+            <div className="bg-lp-surface p-8 group hover:bg-blue-50/30 transition-colors">
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 mb-5 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Multi-tenant Isolation</h3>
-              <p className="text-gray-600 leading-relaxed">
+              <h3 className="text-xl font-bold text-lp-text mb-3">Multi-tenant Isolation</h3>
+              <p className="text-lp-text2 leading-relaxed">
                 Complete data separation between organizations. Your security keys and document templates are unique to your workspace.
               </p>
             </div>
 
-            <div className="bg-white p-8 group hover:bg-indigo-50/30 transition-colors">
+            <div className="bg-lp-surface p-8 group hover:bg-indigo-50/30 transition-colors">
               <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 mb-5 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Granular RBAC</h3>
-              <p className="text-gray-600 leading-relaxed">
+              <h3 className="text-xl font-bold text-lp-text mb-3">Granular RBAC</h3>
+              <p className="text-lp-text2 leading-relaxed">
                 Define custom roles and hierarchy levels. Control precisely who can view reports, edit settings, or initiate workflows.
               </p>
             </div>
 
-            <div className="bg-white p-8 group hover:bg-purple-50/30 transition-colors">
+            <div className="bg-lp-surface p-8 group hover:bg-purple-50/30 transition-colors">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 mb-5 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Managed Workflows</h3>
-              <p className="text-gray-600 leading-relaxed">
+              <h3 className="text-xl font-bold text-lp-text mb-3">Managed Workflows</h3>
+              <p className="text-lp-text2 leading-relaxed">
                 Streamline approval processes with organization-wide document flows and automated review steps.
               </p>
             </div>
 
-            <div className="bg-white p-8 group hover:bg-emerald-50/30 transition-colors">
+            <div className="bg-lp-surface p-8 group hover:bg-emerald-50/30 transition-colors">
               <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 mb-5 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Audit & Reporting</h3>
-              <p className="text-gray-600 leading-relaxed">
+              <h3 className="text-xl font-bold text-lp-text mb-3">Audit & Reporting</h3>
+              <p className="text-lp-text2 leading-relaxed">
                 Track activity across your workspace with detailed audit trails and visualization tools for workflow health.
               </p>
             </div>
 
-            <div className="bg-white p-8 group hover:bg-rose-50/30 transition-colors">
+            <div className="bg-lp-surface p-8 group hover:bg-rose-50/30 transition-colors">
               <div className="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600 mb-5 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Editor Integration</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Currently optimized for <span className="font-bold text-gray-900">{currentCompany?.preferredEditor === 'COLLABORA' ? 'Collabora Office' : 'OnlyOffice'}</span>.
+              <h3 className="text-xl font-bold text-lp-text mb-3">Editor Integration</h3>
+              <p className="text-lp-text2 leading-relaxed">
+                Currently optimized for <span className="font-bold text-lp-text">{currentCompany?.preferredEditor === 'COLLABORA' ? 'Collabora Office' : 'OnlyOffice'}</span>.
                 Seamlessly coordinate document edits within your browser.
               </p>
             </div>
@@ -703,6 +656,20 @@ const CompanyPage = () => {
               </span>
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password for your .p12 key file</label>
+              <input
+                type="password"
+                required
+                className="input-field"
+                value={formData.p12Password}
+                onChange={(e) => setFormData({ ...formData, p12Password: e.target.value })}
+                placeholder="Secure your key file"
+              />
+              <p className="text-xs text-lp-text2 mt-1">
+                This password will be required to use your key file. Keep it safe!
+              </p>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Document Editor</label>
               <select
                 className="input-field"
@@ -712,7 +679,7 @@ const CompanyPage = () => {
                 <option value="ONLYOFFICE">OnlyOffice (Modern, high compatibility)</option>
                 <option value="COLLABORA">Collabora Online (LibreOffice-based, stable)</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-lp-text2 mt-1">
                 You can change this anytime in company settings.
               </p>
             </div>
@@ -736,7 +703,7 @@ const CompanyPage = () => {
                 onClick={() => {
                   setShowCreateForm(false);
                   setError('');
-                  setFormData({ name: '', description: '', useDefaultRoles: true, preferredEditor: 'ONLYOFFICE' });
+                  setFormData({ name: '', description: '', useDefaultRoles: true, preferredEditor: 'ONLYOFFICE', p12Password: '' });
                 }}
                 className="btn-secondary"
               >
@@ -746,142 +713,89 @@ const CompanyPage = () => {
           </form>
         </Modal>
 
-        <Modal isOpen={showJoinForm} onClose={() => setShowJoinForm(false)} title="Join Existing Company">
-          <div className="mb-6">
-            <div className="flex border-b border-gray-200">
-              <button
-                className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${joinMode === 'id' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                onClick={() => setJoinMode('id')}
-              >
-                By ID
-              </button>
-              <button
-                className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${joinMode === 'search' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                onClick={() => setJoinMode('search')}
-              >
-                Search
-              </button>
-              <button
-                className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${joinMode === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                onClick={() => setJoinMode('list')}
-              >
-                Browse All
-              </button>
-            </div>
-          </div>
-
+        <Modal isOpen={showInviteModal} onClose={() => setShowInviteModal(false)} title="Invite New Member">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
               {error}
             </div>
           )}
-
-          {joinMode === 'id' && (
-            <form onSubmit={handleJoinCompanySubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Company ID</label>
-                <input
-                  type="number"
-                  required
-                  className="input-field"
-                  value={joinCompanyId}
-                  onChange={(e) => setJoinCompanyId(e.target.value)}
-                  placeholder="Enter company ID"
-                />
-                <p className="text-gray-500 mt-1 text-sm">
-                  Ask your company administrator for the company ID
-                </p>
-              </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn-primary flex items-center"
-                >
-                  {isSubmitting ? <><LoadingSpinner size="sm" className="mr-2" /> Joining...</> : 'Join Company'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowJoinForm(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-
-          {joinMode === 'search' && (
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  className="input-field"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearchCompanies()}
-                  placeholder="Search by company name..."
-                />
-                <button
-                  onClick={handleSearchCompanies}
-                  disabled={isSearching || !searchQuery.trim()}
-                  className="btn-primary"
-                >
-                  {isSearching ? <LoadingSpinner size="sm" /> : 'Search'}
-                </button>
-              </div>
-
-              <div className="max-h-60 overflow-y-auto space-y-2 custom-scrollbar">
-                {searchResults.length === 0 && !isSearching && searchQuery && (
-                  <p className="text-center text-gray-500 py-4">No companies found</p>
-                )}
-                {searchResults.map((company) => (
-                  <div key={company.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                    <div>
-                      <p className="font-semibold text-gray-900">{company.name}</p>
-                      <p className="text-xs text-gray-500">ID: {company.id}</p>
-                    </div>
-                    <button
-                      onClick={() => handleJoinCompany(company.id)}
-                      disabled={isSubmitting}
-                      className="btn-secondary text-xs py-1.5"
-                    >
-                      Join
-                    </button>
-                  </div>
+          <form onSubmit={handleInviteMember} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Member Email</label>
+              <input
+                type="email"
+                required
+                className="input-field"
+                value={inviteFormData.email}
+                onChange={(e) => setInviteFormData({ ...inviteFormData, email: e.target.value })}
+                placeholder="colleague@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Role</label>
+              <select
+                required
+                className="input-field"
+                value={inviteFormData.roleId}
+                onChange={(e) => setInviteFormData({ ...inviteFormData, roleId: e.target.value })}
+              >
+                <option value="">Select a role...</option>
+                {roles.filter((role) => role.level < 100).map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name} (Level {role.level})
+                  </option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Invitation Channel</label>
+              <div className="flex gap-4 p-2 bg-lp-surface2 rounded-xl border border-lp-border">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="channel"
+                    value="EMAIL"
+                    checked={inviteFormData.channel === 'EMAIL'}
+                    onChange={() => setInviteFormData({ ...inviteFormData, channel: 'EMAIL' })}
+                  />
+                  <span className="text-sm">Email</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="channel"
+                    value="TELEGRAM"
+                    checked={inviteFormData.channel === 'TELEGRAM'}
+                    onChange={() => setInviteFormData({ ...inviteFormData, channel: 'TELEGRAM' })}
+                  />
+                  <span className="text-sm">Telegram</span>
+                </label>
               </div>
             </div>
-          )}
-
-          {joinMode === 'list' && (
-            <div className="space-y-4">
-              <div className="max-h-80 overflow-y-auto space-y-2 custom-scrollbar">
-                {isBrowsing && <div className="flex justify-center py-8"><LoadingSpinner /></div>}
-                {!isBrowsing && browseResults.length === 0 && (
-                  <p className="text-center text-gray-500 py-4">No companies available</p>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="submit"
+                disabled={isSubmitting || !inviteFormData.roleId}
+                className="btn-primary flex items-center"
+              >
+                {isSubmitting ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Sending...
+                  </>
+                ) : (
+                  'Send Invite'
                 )}
-                {browseResults.map((company) => (
-                  <div key={company.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                    <div>
-                      <p className="font-semibold text-gray-900">{company.name}</p>
-                      <p className="text-xs text-gray-500">ID: {company.id}</p>
-                    </div>
-                    <button
-                      onClick={() => handleJoinCompany(company.id)}
-                      disabled={isSubmitting}
-                      className="btn-secondary text-xs py-1.5"
-                    >
-                      Join
-                    </button>
-                  </div>
-                ))}
-              </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
             </div>
-          )}
+          </form>
         </Modal>
 
         <KeyUploadModal
@@ -959,8 +873,8 @@ const CompanyPage = () => {
         >
           <div className="space-y-8">
             {/* Заголовок и кнопка создания роли */}
-            <div className="flex justify-between items-center pb-4 border-b border-gray-200">
-              <h3 className="text-2xl font-bold text-gray-900">
+            <div className="flex justify-between items-center pb-4 border-b border-lp-border">
+              <h3 className="text-2xl font-bold text-lp-text">
                 Roles in <span className="text-blue-600">{currentCompany?.companyName}</span>
               </h3>
               <button
@@ -977,7 +891,7 @@ const CompanyPage = () => {
             {/* Список ролей */}
             {roles.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">No roles loaded.</p>
+                <p className="text-lp-text2 text-lg">No roles loaded.</p>
               </div>
             ) : (
               <div className="grid gap-5">
@@ -990,7 +904,7 @@ const CompanyPage = () => {
                       }`}
                   >
                     <div>
-                      <div className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="text-xl font-bold text-lp-text flex items-center gap-3">
                         {role.name}
                         {role.isSystem && (
                           <span className="text-xs bg-purple-600 text-white px-2.5 py-1 rounded-full font-medium">
@@ -1042,7 +956,7 @@ const CompanyPage = () => {
             {/* Участники компании */}
             {companyMembers.length > 0 && (
               <div className="mt-10">
-                <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                <h3 className="text-2xl font-bold text-lp-text mb-6">
                   Company Members ({companyMembers.length})
                 </h3>
                 <div className="grid gap-4">
@@ -1056,7 +970,7 @@ const CompanyPage = () => {
                         className="flex justify-between items-center p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 shadow-md"
                       >
                         <div>
-                          <div className="text-lg font-semibold text-gray-900 flex items-center gap-3">
+                          <div className="text-lg font-semibold text-lp-text flex items-center gap-3">
                             {fullName}
                             {isCurrentUser && (
                               <span className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-full font-bold">
@@ -1073,7 +987,7 @@ const CompanyPage = () => {
                         {(currentCompany?.roleLevel ?? 0) >= 100 && !isCurrentUser && (
                           <button
                             onClick={() => handleEditMemberRole(member)}
-                            className="bg-white text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-200 font-semibold text-sm shadow-sm transition-colors"
+                            className="bg-lp-surface text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-200 font-semibold text-sm shadow-sm transition-colors"
                           >
                             Change Role
                           </button>
@@ -1093,7 +1007,7 @@ const CompanyPage = () => {
           onClose={() => {
             setShowEditRole(false);
             setEditingRole(null);
-            setRoleFormData({ roleName: '', level: 50 });
+            setRoleFormData({ roleName: '', level: 50, canViewReports: false });
             setError('');
           }}
           title="Edit Role"
@@ -1131,12 +1045,25 @@ const CompanyPage = () => {
                 value={roleFormData.level}
                 onChange={(e) => setRoleFormData({ ...roleFormData, level: parseInt(e.target.value) || 50 })}
               />
-              <div className="mt-3 space-y-1 text-sm text-gray-600">
+              <div className="mt-3 space-y-1 text-sm text-lp-text2">
                 <p>• <strong>100</strong> — CEO (full access)</p>
                 <p>• <strong>80</strong> — Director</p>
                 <p>• <strong>60</strong> — Manager</p>
                 <p>• <strong>10</strong> — Worker</p>
               </div>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="canViewReportsEdit"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                checked={roleFormData.canViewReports}
+                onChange={(e) => setRoleFormData({ ...roleFormData, canViewReports: e.target.checked })}
+              />
+              <label htmlFor="canViewReportsEdit" className="ml-2 block text-sm text-gray-700 font-semibold">
+                Can View Reports
+              </label>
             </div>
 
             <div className="flex justify-between items-center pt-4">
@@ -1155,7 +1082,7 @@ const CompanyPage = () => {
                   onClick={() => {
                     setShowEditRole(false);
                     setEditingRole(null);
-                    setRoleFormData({ roleName: '', level: 50 });
+                    setRoleFormData({ roleName: '', level: 50, canViewReports: false });
                     setError('');
                   }}
                   className="btn-secondary px-6"
@@ -1179,7 +1106,7 @@ const CompanyPage = () => {
           isOpen={showCreateRole}
           onClose={() => {
             setShowCreateRole(false);
-            setRoleFormData({ roleName: '', level: 50 });
+            setRoleFormData({ roleName: '', level: 50, canViewReports: false });
             setError('');
           }}
           title="Create New Role"
@@ -1218,7 +1145,7 @@ const CompanyPage = () => {
                 value={roleFormData.level}
                 onChange={(e) => setRoleFormData({ ...roleFormData, level: parseInt(e.target.value) || 50 })}
               />
-              <div className="mt-3 space-y-1 text-sm text-gray-600">
+              <div className="mt-3 space-y-1 text-sm text-lp-text2">
                 <p>• <strong>100</strong> — CEO (full access)</p>
                 <p>• <strong>80</strong> — Director</p>
                 <p>• <strong>60</strong> — Manager (can create templates)</p>
@@ -1226,12 +1153,25 @@ const CompanyPage = () => {
               </div>
             </div>
 
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="canViewReports"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                checked={roleFormData.canViewReports}
+                onChange={(e) => setRoleFormData({ ...roleFormData, canViewReports: e.target.checked })}
+              />
+              <label htmlFor="canViewReports" className="ml-2 block text-sm text-gray-700 font-semibold">
+                Can View Reports
+              </label>
+            </div>
+
             <div className="flex justify-end space-x-4 pt-4">
               <button
                 type="button"
                 onClick={() => {
                   setShowCreateRole(false);
-                  setRoleFormData({ roleName: '', level: 50 });
+                  setRoleFormData({ roleName: '', level: 50, canViewReports: false });
                   setError('');
                 }}
                 className="btn-secondary px-6"
@@ -1278,8 +1218,8 @@ const CompanyPage = () => {
           {editingMember && (
             <form onSubmit={handleUpdateMemberRole} className="space-y-6">
               <div>
-                <p className="text-gray-600 mb-4">
-                  Changing role for: <span className="font-bold text-gray-900">{editingMember.firstName} {editingMember.lastName}</span>
+                <p className="text-lp-text2 mb-4">
+                  Changing role for: <span className="font-bold text-lp-text">{editingMember.firstName} {editingMember.lastName}</span>
                 </p>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Select New Role
@@ -1325,7 +1265,7 @@ const CompanyPage = () => {
         </Modal>
 
       </div>
-    </Navigation>
+    </DashboardLayout>
   );
 }
 export default CompanyPage;

@@ -4,12 +4,13 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { chatService } from '../services/api';
 import type { ChatChannelResponse } from '../services/api';
 import { companyService } from '../services/companyService';
-import Navigation from '../components/Navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // --- Sub-components for Optimization ---
 
@@ -17,8 +18,8 @@ const MarkdownComponents = {
     code({ node, inline, className, children, ...props }: any) {
         const match = /language-(\w+)/.exec(className || '');
         return !inline && match ? (
-            <div className="my-3 rounded-lg overflow-hidden border border-black/10 shadow-sm text-left">
-                <div className="bg-gray-800 px-4 py-1.5 text-[10px] text-gray-400 font-mono flex justify-between items-center border-b border-white/5">
+            <div className="my-3 rounded-lg overflow-hidden border border-lp-border shadow-sm text-left">
+                <div className="bg-lp-surface3 px-4 py-1.5 text-[10px] text-lp-text3 font-mono flex justify-between items-center border-b border-lp-border">
                     <span>{match[1].toUpperCase()}</span>
                     <span className="opacity-50 text-[9px]">Code Block</span>
                 </div>
@@ -30,7 +31,7 @@ const MarkdownComponents = {
                         margin: 0,
                         padding: '1rem',
                         fontSize: '13px',
-                        backgroundColor: '#1E1E1E'
+                        backgroundColor: 'var(--lp-surface)'
                     }}
                     {...props}
                 >
@@ -38,31 +39,31 @@ const MarkdownComponents = {
                 </SyntaxHighlighter>
             </div>
         ) : (
-            <code className={`${className} bg-gray-100 px-1.5 py-0.5 rounded text-[0.9em] font-mono text-pink-600`} {...props}>
+            <code className={`${className} bg-lp-surface2 px-1.5 py-0.5 rounded text-[0.9em] font-mono text-lp-accent2`} {...props}>
                 {children}
             </code>
         );
     },
     table: ({ children }: any) => (
-        <div className="overflow-x-auto my-4 rounded-xl border border-gray-100 shadow-sm">
-            <table className="min-w-full divide-y divide-gray-100 bg-white">
+        <div className="overflow-x-auto my-4 rounded-xl border border-lp-border shadow-sm">
+            <table className="min-w-full divide-y divide-lp-border bg-lp-surface">
                 {children}
             </table>
         </div>
     ),
-    thead: ({ children }: any) => <thead className="bg-gray-50/50">{children}</thead>,
-    th: ({ children }: any) => <th className="px-4 py-2.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">{children}</th>,
-    td: ({ children }: any) => <td className="px-4 py-3 text-sm text-gray-600 border-b border-gray-50">{children}</td>,
+    thead: ({ children }: any) => <thead className="bg-lp-surface2/50">{children}</thead>,
+    th: ({ children }: any) => <th className="px-4 py-2.5 text-left text-[11px] font-bold text-lp-text3 uppercase tracking-widest border-b border-lp-border">{children}</th>,
+    td: ({ children }: any) => <td className="px-4 py-3 text-sm text-lp-text2 border-b border-lp-border/50">{children}</td>,
     ul: ({ children }: any) => <ul className="list-disc ml-6 my-3 space-y-1.5">{children}</ul>,
     ol: ({ children }: any) => <ol className="list-decimal ml-6 my-3 space-y-1.5">{children}</ol>,
     li: ({ children }: any) => <li className="pl-1 leading-normal">{children}</li>,
-    h1: ({ children }: any) => <h1 className="text-xl font-extrabold text-gray-900 mt-6 mb-3 border-b border-gray-100 pb-2">{children}</h1>,
-    h2: ({ children }: any) => <h2 className="text-lg font-bold text-gray-800 mt-5 mb-2.5">{children}</h2>,
-    h3: ({ children }: any) => <h3 className="text-base font-bold text-gray-700 mt-4 mb-2">{children}</h3>,
+    h1: ({ children }: any) => <h1 className="text-xl font-extrabold text-lp-text mt-6 mb-3 border-b border-lp-border pb-2">{children}</h1>,
+    h2: ({ children }: any) => <h2 className="text-lg font-bold text-lp-text mt-5 mb-2.5">{children}</h2>,
+    h3: ({ children }: any) => <h3 className="text-base font-bold text-lp-text2 mt-4 mb-2">{children}</h3>,
     p: ({ children }: any) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
-    hr: () => <hr className="my-6 border-gray-100" />,
+    hr: () => <hr className="my-6 border-lp-border" />,
     blockquote: ({ children }: any) => (
-        <blockquote className="border-l-4 border-blue-500 bg-blue-50/50 px-4 py-2 italic my-4 rounded-r-lg text-blue-900 shadow-sm">
+        <blockquote className="border-l-4 border-lp-accent bg-lp-accent/5 px-4 py-2 italic my-4 rounded-r-lg text-lp-accent shadow-sm">
             {children}
         </blockquote>
     )
@@ -79,11 +80,11 @@ const MessageItem = React.memo(({ msg, isMe, isGroupStart, getSenderColor, handl
                 )}
 
                 <div className={`relative px-4 py-3 shadow-sm transition-all duration-200 group ${isMe
-                    ? `${msg.status === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-[#005cff] text-white'} ${isGroupStart ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}`
-                    : `bg-white border border-black/5 text-gray-800 ${isGroupStart ? 'rounded-2xl rounded-tl-none' : 'rounded-2xl'}`
+                    ? `${msg.status === 'error' ? 'bg-lp-red/10 text-lp-red border border-lp-red/20' : 'bg-lp-accent text-white'} ${isGroupStart ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}`
+                    : `bg-lp-surface border border-lp-border/50 text-lp-text2 ${isGroupStart ? 'rounded-2xl rounded-tl-none' : 'rounded-2xl'}`
                     }`}>
 
-                    <div className={`text-[14px] leading-[1.6] markdown-content overflow-hidden ${isMe ? 'prose-invert text-white' : 'text-gray-800'}`}>
+                    <div className={`text-[14px] leading-[1.6] markdown-content overflow-hidden ${isMe ? 'prose-invert text-white' : 'text-lp-text'}`}>
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={MarkdownComponents}
@@ -93,7 +94,7 @@ const MessageItem = React.memo(({ msg, isMe, isGroupStart, getSenderColor, handl
                     </div>
 
                     {msg.status === 'error' && (
-                        <div className="mt-2 flex items-center justify-between border-t border-red-100 pt-2 text-left">
+                        <div className="mt-2 flex items-center justify-between border-t border-lp-red/10 pt-2 text-left">
                             <div className="flex items-center gap-1.5 text-[11px] font-bold">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -109,14 +110,14 @@ const MessageItem = React.memo(({ msg, isMe, isGroupStart, getSenderColor, handl
                         </div>
                     )}
 
-                    <div className={`mt-1 flex items-center justify-end gap-1 ${isMe ? (msg.status === 'error' ? 'text-red-400' : 'text-blue-100/70') : 'text-gray-400'}`}>
+                    <div className={`mt-1 flex items-center justify-end gap-1 ${isMe ? (msg.status === 'error' ? 'text-red-400' : 'text-white/60') : 'text-lp-text3'}`}>
                         <span className="text-[9px] tabular-nums font-medium">
                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {isMe && (
                             <div className="flex -space-x-1">
                                 {msg.status === 'sending' ? (
-                                    <svg className="animate-spin h-2.5 w-2.5 text-blue-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <svg className="animate-spin h-2.5 w-2.5 text-white/50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
@@ -126,10 +127,10 @@ const MessageItem = React.memo(({ msg, isMe, isGroupStart, getSenderColor, handl
                                     </svg>
                                 ) : (
                                     <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-2.5 w-2.5 ${msg.status === 'sent' ? 'text-blue-100' : 'text-blue-100/50'}`} viewBox="0 0 20 20" fill="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-2.5 w-2.5 ${msg.status === 'sent' ? 'text-white/80' : 'text-white/40'}`} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-2.5 w-2.5 ${msg.status === 'sent' ? 'text-blue-100' : 'text-blue-100/50'}`} viewBox="0 0 20 20" fill="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-2.5 w-2.5 ${msg.status === 'sent' ? 'text-white/80' : 'text-white/40'}`} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
                                     </>
@@ -141,7 +142,7 @@ const MessageItem = React.memo(({ msg, isMe, isGroupStart, getSenderColor, handl
                     {isMe && msg.id && (
                         <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }}
-                            className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full shadow-md border border-gray-100 text-gray-400 hover:text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-lp-surface rounded-full shadow-md border border-lp-border text-lp-text3 hover:text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
                             title="Delete message"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -167,7 +168,7 @@ const ChatInput = ({ activeChannel, isConnected, onSend }: any) => {
     };
 
     return (
-        <div className="p-6 bg-white border-t border-gray-100">
+        <div className="p-6 bg-lp-surface border-t border-lp-border">
             <form onSubmit={handleSubmit} className="relative flex items-center gap-4">
                 <div className="flex-1 relative group">
                     <input
@@ -175,7 +176,7 @@ const ChatInput = ({ activeChannel, isConnected, onSend }: any) => {
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         placeholder={`Message ${activeChannel?.isPublic ? '#' : ''}${activeChannel?.name}...`}
-                        className="w-full bg-gray-50 border-0 rounded-2xl px-6 py-4 pr-12 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all duration-200 outline-none"
+                        className="w-full bg-lp-surface2 border-0 rounded-2xl px-6 py-4 pr-12 text-[15px] focus:ring-2 focus:ring-lp-accent/20 focus:bg-lp-surface transition-all duration-200 outline-none text-lp-text placeholder:text-lp-text3"
                     />
                     <button
                         type="button"
@@ -189,7 +190,7 @@ const ChatInput = ({ activeChannel, isConnected, onSend }: any) => {
                 <button
                     type="submit"
                     disabled={!isConnected || !text.trim()}
-                    className="h-14 w-14 flex items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                    className="h-14 w-14 flex items-center justify-center rounded-2xl bg-lp-accent text-white shadow-lg shadow-lp-accent/20 hover:bg-lp-accent2 disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 rotate-90" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
@@ -214,6 +215,7 @@ interface Message {
 
 const ChatPage = () => {
     const { user } = useAuth();
+    const { t } = useTranslation();
     const { isConnected, subscribeToChannel, unsubscribeFromChannel, sendMessage, clearChatMessages } = useWebSocket();
 
     const [channels, setChannels] = useState<ChatChannelResponse[]>([]);
@@ -513,15 +515,15 @@ const ChatPage = () => {
     if (isLoading) return <LoadingSpinner />;
 
     return (
-        <Navigation>
-            <div className={`flex bg-gray-50/50 backdrop-blur-xl ${isFullScreen ? 'fixed inset-0 z-[9999]' : 'h-[calc(100vh-120px)] rounded-[32px] overflow-hidden border border-white shadow-[0_20px_50px_rgba(0,0,0,0.1)]'}`}>
+        <DashboardLayout title={t('navigation.chat')}>
+            <div className={`flex bg-lp-bg backdrop-blur-xl ${isFullScreen ? 'fixed inset-0 z-[9999]' : 'h-[calc(100vh-180px)] rounded-[32px] overflow-hidden border border-lp-border shadow-[0_20px_50px_rgba(0,0,0,0.1)]'}`}>
                 {/* Sidebar */}
-                <div className={`w-[320px] bg-white border-r border-gray-100 flex flex-col ${isFullScreen ? '' : ''}`}>
-                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
-                        <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Channels</h2>
+                <div className={`w-[320px] bg-lp-surface border-r border-lp-border flex flex-col ${isFullScreen ? '' : ''}`}>
+                    <div className="p-6 border-b border-lp-border flex justify-between items-center bg-lp-surface/50">
+                        <h2 className="text-xl font-bold bg-gradient-to-r from-lp-accent to-lp-accent2 bg-clip-text text-transparent">Channels</h2>
                         <button
                             onClick={() => setShowCreateChannel(true)}
-                            className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm"
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-lp-accent/10 text-lp-accent hover:bg-lp-accent hover:text-white transition-all duration-200 shadow-sm"
                             title="Create Channel"
                         >
                             <span className="text-xl font-medium">+</span>
@@ -532,20 +534,20 @@ const ChatPage = () => {
                         {/* Public Channels */}
                         <div>
                             <div className="flex items-center justify-between mb-2 px-2">
-                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Public</span>
+                                <span className="text-xs font-semibold text-lp-text3 uppercase tracking-wider">Public</span>
                             </div>
                             <div className="space-y-1">
-                                {channels.length === 0 && <p className="text-gray-400 text-xs px-2 italic">No channels yet</p>}
+                                {channels.length === 0 && <p className="text-lp-text3 text-xs px-2 italic">No channels yet</p>}
                                 {channels.map(channel => (
                                     <button
                                         key={channel.id}
                                         onClick={() => setActiveChannel(channel)}
                                         className={`w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-200 group ${activeChannel?.id === channel.id
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                                            : 'text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm'
+                                            ? 'bg-lp-accent text-white shadow-lg shadow-lp-accent/20'
+                                            : 'text-lp-text2 hover:bg-lp-surface2 hover:text-lp-accent hover:shadow-sm'
                                             }`}
                                     >
-                                        <span className={`mr-3 font-medium ${activeChannel?.id === channel.id ? 'text-blue-200' : 'text-gray-300 group-hover:text-blue-400'}`}>#</span>
+                                        <span className={`mr-3 font-medium ${activeChannel?.id === channel.id ? 'text-white/60' : 'text-lp-text3 group-hover:text-lp-accent'}`}>#</span>
                                         <span className="font-medium truncate">{channel.name}</span>
                                     </button>
                                 ))}
@@ -555,10 +557,10 @@ const ChatPage = () => {
                         {/* Direct Messages */}
                         <div>
                             <div className="flex items-center justify-between mb-2 px-2">
-                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Direct Messages</span>
+                                <span className="text-xs font-semibold text-lp-text3 uppercase tracking-wider">Direct Messages</span>
                                 <button
                                     onClick={openStartDM}
-                                    className="text-gray-400 hover:text-blue-600 transition-colors"
+                                    className="text-lp-text3 hover:text-lp-accent transition-colors"
                                     title="New Message"
                                 >
                                     <span className="text-lg">+</span>
@@ -568,24 +570,24 @@ const ChatPage = () => {
                                 {aiUser && !dms.find(dm => dm.name.includes("AI Assistant")) && (
                                     <button
                                         onClick={() => handleUserSelect(aiUser.id)}
-                                        className="w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-200 group text-gray-600 hover:bg-white hover:text-purple-600 hover:shadow-sm"
+                                        className="w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-200 group text-lp-text2 hover:bg-lp-surface2 hover:text-purple-400 hover:shadow-sm"
                                     >
                                         <div className="w-2 h-2 rounded-full mr-3 bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.4)]"></div>
                                         <span className="font-medium truncate">AI Assistant</span>
-                                        <span className="ml-auto text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-bold">AI</span>
+                                        <span className="ml-auto text-[10px] bg-purple-400/10 text-purple-400 px-1.5 py-0.5 rounded font-bold">AI</span>
                                     </button>
                                 )}
-                                {dms.length === 0 && !aiUser && <p className="text-gray-400 text-xs px-2 italic">No conversations</p>}
+                                {dms.length === 0 && !aiUser && <p className="text-lp-text3 text-xs px-2 italic">No conversations</p>}
                                 {dms.map(dm => (
                                     <button
                                         key={dm.id}
                                         onClick={() => setActiveChannel(dm)}
                                         className={`w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-200 group ${activeChannel?.id === dm.id
-                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
-                                            : 'text-gray-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm'
+                                            ? 'bg-lp-accent text-white shadow-lg shadow-lp-accent/20'
+                                            : 'text-lp-text2 hover:bg-lp-surface2 hover:text-lp-accent hover:shadow-sm'
                                             }`}
                                     >
-                                        <div className={`w-2 h-2 rounded-full mr-3 ${activeChannel?.id === dm.id ? 'bg-indigo-300' : 'bg-gray-300 group-hover:bg-indigo-400'}`}></div>
+                                        <div className={`w-2 h-2 rounded-full mr-3 ${activeChannel?.id === dm.id ? 'bg-white/60' : 'bg-lp-text3 group-hover:bg-lp-accent'}`}></div>
                                         <span className="font-medium truncate">{dm.name}</span>
                                     </button>
                                 ))}
@@ -595,30 +597,30 @@ const ChatPage = () => {
                 </div>
 
                 {/* Chat Area */}
-                <div className="flex-1 flex flex-col bg-white">
+                <div className="flex-1 flex flex-col bg-lp-surface">
                     {activeChannel ? (
                         <>
                             {/* Header */}
-                            <div className="h-20 px-6 border-b border-gray-100 flex justify-between items-center">
+                            <div className="h-20 px-6 border-b border-lp-border flex justify-between items-center">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                                    <div className="w-10 h-10 rounded-xl bg-lp-accent/10 flex items-center justify-center text-lp-accent">
                                         <span className="text-xl font-bold">{activeChannel.name.charAt(0).toUpperCase()}</span>
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-gray-800 text-lg leading-tight">
+                                            <h3 className="font-bold text-lp-text text-lg leading-tight">
                                                 {activeChannel.isPublic ? '#' : ''}{activeChannel.name}
                                             </h3>
                                             {(activeChannel.name === 'AI Assistant' || (aiUser && activeChannel.name === `${aiUser.firstName} ${aiUser.lastName}`)) && (
-                                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-50 text-purple-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-purple-100">
-                                                    <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-purple-400/10 text-purple-400 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-purple-400/20">
+                                                    <div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div>
                                                     Context Active
                                                 </div>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                                            <span className="text-[10px] font-semibold text-lp-text3 uppercase tracking-wider">
                                                 {isConnected ? 'Connected' : 'Disconnected'}
                                             </span>
                                         </div>
@@ -627,7 +629,7 @@ const ChatPage = () => {
                                 <div className="flex items-center gap-3">
                                     <button
                                         onClick={handleDeleteChannel}
-                                        className="p-2.5 rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-all duration-200"
+                                        className="p-2.5 rounded-xl text-lp-text3 hover:bg-rose-500/10 hover:text-rose-500 transition-all duration-200"
                                         title="Delete Chat"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -636,7 +638,7 @@ const ChatPage = () => {
                                     </button>
                                     <button
                                         onClick={() => setIsFullScreen(!isFullScreen)}
-                                        className={`p-2.5 rounded-xl transition-all duration-200 text-gray-400 hover:bg-gray-50 hover:text-blue-600`}
+                                        className={`p-2.5 rounded-xl transition-all duration-200 text-lp-text3 hover:bg-lp-surface2 hover:text-lp-accent`}
                                         title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                                     >
                                         {isFullScreen ? (
@@ -651,7 +653,7 @@ const ChatPage = () => {
                                     </button>
                                     <button
                                         onClick={() => setShowMembers(!showMembers)}
-                                        className={`p-2.5 rounded-xl transition-all duration-200 ${showMembers ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-gray-50'}`}
+                                        className={`p-2.5 rounded-xl transition-all duration-200 ${showMembers ? 'bg-lp-accent/10 text-lp-accent' : 'text-lp-text3 hover:bg-lp-surface2'}`}
                                         title="Show/Hide Members"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -662,7 +664,7 @@ const ChatPage = () => {
                             </div>
 
                             {/* Messages */}
-                            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-gray-50/30">
+                            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-lp-bg/30">
                                 {messages.map((msg, index) => {
                                     const isMe = msg.senderId === user?.id;
                                     const prevMsg = index > 0 ? messages[index - 1] : null;
@@ -693,13 +695,13 @@ const ChatPage = () => {
                                 })}
                                 {isAiThinking && (activeChannel.name === 'AI Assistant' || (aiUser && activeChannel.name === `${aiUser.firstName} ${aiUser.lastName}`)) && (
                                     <div className="flex justify-start mt-2">
-                                        <div className="bg-white border border-black/5 px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
+                                        <div className="bg-lp-surface border border-lp-border/50 px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
                                             <div className="flex gap-1">
-                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                                                <div className="w-1.5 h-1.5 bg-lp-text3 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                                <div className="w-1.5 h-1.5 bg-lp-text3 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                                <div className="w-1.5 h-1.5 bg-lp-text3 rounded-full animate-bounce"></div>
                                             </div>
-                                            <span className="text-[12px] font-medium text-gray-400 italic">AI Assistant is thinking...</span>
+                                            <span className="text-[12px] font-medium text-lp-text3 italic">AI Assistant is thinking...</span>
                                         </div>
                                     </div>
                                 )}
@@ -714,15 +716,15 @@ const ChatPage = () => {
                             />
                         </>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center bg-gray-50/30 p-12">
+                        <div className="flex-1 flex items-center justify-center bg-lp-bg/30 p-12">
                             <div className="max-w-md text-center">
-                                <div className="w-24 h-24 bg-blue-100 rounded-3xl flex items-center justify-center text-blue-600 mx-auto mb-6 shadow-sm">
+                                <div className="w-24 h-24 bg-lp-accent/10 rounded-3xl flex items-center justify-center text-lp-accent mx-auto mb-6 shadow-sm">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                     </svg>
                                 </div>
-                                <h2 className="text-2xl font-bold text-gray-800 mb-3">Welcome to DocFlow Chat</h2>
-                                <p className="text-gray-500 mb-8 leading-relaxed">Select a channel from the sidebar to join the conversation, or create a new one to collaborate with your team.</p>
+                                <h2 className="text-2xl font-bold text-lp-text mb-3">Welcome to DocFlow Chat</h2>
+                                <p className="text-lp-text2 mb-8 leading-relaxed">Select a channel from the sidebar to join the conversation, or create a new one to collaborate with your team.</p>
                                 <button
                                     onClick={() => setShowCreateChannel(true)}
                                     className="btn-primary"
@@ -736,11 +738,11 @@ const ChatPage = () => {
 
                 {/* Members List Sidebar */}
                 {activeChannel && showMembers && (
-                    <div className="w-64 border-l border-gray-100 bg-white flex flex-col animate-in slide-in-from-right duration-300">
-                        <div className="p-6 border-b border-gray-100 h-20 flex items-center">
-                            <h2 className="font-bold text-gray-800 flex items-center gap-2">
+                    <div className="w-64 border-l border-lp-border bg-lp-surface flex flex-col animate-in slide-in-from-right duration-300">
+                        <div className="p-6 border-b border-lp-border h-20 flex items-center">
+                            <h2 className="font-bold text-lp-text flex items-center gap-2">
                                 Members
-                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{members.length}</span>
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-lp-surface2 text-lp-text3">{members.length}</span>
                             </h2>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-1">
@@ -749,21 +751,21 @@ const ChatPage = () => {
                                 return (
                                     <div
                                         key={m.id}
-                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group relative"
+                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-lp-surface2 transition-colors group relative"
                                     >
                                         <div className="relative">
-                                            <div className={`w-9 h-9 rounded-xl border border-white shadow-sm flex items-center justify-center font-bold text-sm uppercase ${isAi
-                                                ? 'bg-gradient-to-br from-purple-100 to-purple-200 text-purple-600'
-                                                : 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600'}`}>
+                                            <div className={`w-9 h-9 rounded-xl border border-white/10 shadow-sm flex items-center justify-center font-bold text-sm uppercase ${isAi
+                                                ? 'bg-gradient-to-br from-purple-400/20 to-purple-600/20 text-purple-400'
+                                                : 'bg-lp-surface3 text-lp-text2'}`}>
                                                 {isAi ? 'AI' : `${m.firstName.charAt(0)}${m.lastName.charAt(0)}`}
                                             </div>
-                                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-green-500`}></div>
+                                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-lp-surface bg-green-500`}></div>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h4 className="text-sm font-semibold text-gray-800 truncate">
-                                                {m.firstName} {m.lastName} {isAi && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">BOT</span>}
+                                            <h4 className="text-sm font-semibold text-lp-text truncate">
+                                                {m.firstName} {m.lastName} {isAi && <span className="ml-1 text-[10px] bg-purple-400/10 text-purple-400 px-1.5 py-0.5 rounded font-bold">BOT</span>}
                                             </h4>
-                                            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">{m.email}</p>
+                                            <p className="text-[10px] text-lp-text3 font-medium uppercase tracking-tight">{m.email}</p>
                                         </div>
                                     </div>
                                 )
@@ -774,32 +776,32 @@ const ChatPage = () => {
 
                 {/* Modals (remains similar but styled) */}
                 {showCreateChannel && (
-                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
-                        <div className="bg-white p-8 rounded-3xl w-[400px] shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-100">
-                            <h3 className="text-2xl font-bold text-gray-800 mb-2">Create Channel</h3>
-                            <p className="text-gray-500 mb-6 text-sm">Channels are where your team communicates. They’re best when organized around a topic.</p>
+                    <div className="fixed inset-0 bg-lp-bg/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
+                        <div className="bg-lp-surface p-8 rounded-3xl w-[400px] shadow-2xl animate-in zoom-in-95 duration-200 border border-lp-border">
+                            <h3 className="text-2xl font-bold text-lp-text mb-2">Create Channel</h3>
+                            <p className="text-lp-text2 mb-6 text-sm">Channels are where your team communicates. They’re best when organized around a topic.</p>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="text-sm font-bold text-gray-700 mb-1.5 block">Name</label>
+                                    <label className="text-sm font-bold text-lp-text2 mb-1.5 block">Name</label>
                                     <input
                                         type="text"
                                         value={newChannelName}
                                         onChange={(e) => setNewChannelName(e.target.value)}
                                         placeholder="e.g. marketing-updates"
-                                        className="w-full bg-gray-50 border-0 rounded-2xl px-5 py-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all duration-200 outline-none"
+                                        className="w-full bg-lp-surface2 border-0 rounded-2xl px-5 py-4 text-[15px] focus:ring-2 focus:ring-lp-accent/20 focus:bg-lp-surface transition-all duration-200 outline-none text-lp-text placeholder:text-lp-text3"
                                         autoFocus
                                     />
                                 </div>
                                 <div className="flex gap-3 pt-4">
                                     <button
                                         onClick={() => setShowCreateChannel(false)}
-                                        className="flex-1 px-4 py-4 text-gray-600 font-bold hover:bg-gray-50 rounded-2xl transition-colors"
+                                        className="flex-1 px-4 py-4 text-lp-text2 font-bold hover:bg-lp-surface2 rounded-2xl transition-colors"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={handleCreateChannel}
-                                        className="flex-1 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all duration-200"
+                                        className="flex-1 bg-lp-accent text-white font-bold rounded-2xl shadow-lg shadow-lp-accent/20 hover:bg-lp-accent2 transition-all duration-200"
                                     >
                                         Create
                                     </button>
@@ -810,13 +812,13 @@ const ChatPage = () => {
                 )}
 
                 {showStartDM && (
-                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
-                        <div className="bg-white p-8 rounded-3xl w-[450px] shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-100 max-h-[80vh] flex flex-col">
+                    <div className="fixed inset-0 bg-lp-bg/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
+                        <div className="bg-lp-surface p-8 rounded-3xl w-[450px] shadow-2xl animate-in zoom-in-95 duration-200 border border-lp-border max-h-[80vh] flex flex-col">
                             <div className="mb-6">
-                                <h3 className="text-2xl font-bold text-gray-800 mb-2">New Message</h3>
-                                <p className="text-gray-500 text-sm">Select a colleague to start a private conversation.</p>
+                                <h3 className="text-2xl font-bold text-lp-text mb-2">New Message</h3>
+                                <p className="text-lp-text2 text-sm">Select a colleague to start a private conversation.</p>
                             </div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mb-6">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 mb-6 pr-2">
                                 {(() => {
                                     // Merge AI user into available users if fetched
                                     let displayUsers = [...availableUsers];
@@ -844,19 +846,19 @@ const ChatPage = () => {
                                             <button
                                                 key={u.id}
                                                 onClick={() => handleUserSelect(u.id)}
-                                                className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl transition-all duration-200 border border-transparent hover:border-gray-100"
+                                                className="w-full flex items-center gap-4 p-4 hover:bg-lp-surface2 rounded-2xl transition-all duration-200 border border-transparent hover:border-lp-border"
                                             >
                                                 <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold ${isAi
-                                                    ? 'bg-purple-100 text-purple-600'
-                                                    : 'bg-indigo-50 text-indigo-600'}`}>
+                                                    ? 'bg-purple-400/20 text-purple-400'
+                                                    : 'bg-lp-surface3 text-lp-text2'}`}>
                                                     {isAi ? 'AI' : `${u.firstName.charAt(0)}${u.lastName.charAt(0)}`}
                                                 </div>
                                                 <div className="text-left">
-                                                    <h4 className="font-bold text-gray-800">
+                                                    <h4 className="font-bold text-lp-text">
                                                         {u.firstName} {u.lastName}
-                                                        {isAi && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">ASSISTANT</span>}
+                                                        {isAi && <span className="ml-2 text-[10px] bg-purple-400/10 text-purple-400 px-1.5 py-0.5 rounded font-bold">ASSISTANT</span>}
                                                     </h4>
-                                                    <p className="text-xs text-gray-400">{u.email}</p>
+                                                    <p className="text-xs text-lp-text3">{u.email}</p>
                                                 </div>
                                             </button>
                                         )
@@ -865,7 +867,7 @@ const ChatPage = () => {
                             </div>
                             <button
                                 onClick={() => setShowStartDM(false)}
-                                className="w-full py-4 text-gray-600 font-bold hover:bg-gray-50 rounded-2xl transition-colors"
+                                className="w-full py-4 text-lp-text2 font-bold hover:bg-lp-surface2 rounded-2xl transition-colors"
                             >
                                 Cancel
                             </button>
@@ -873,7 +875,7 @@ const ChatPage = () => {
                     </div>
                 )}
             </div>
-        </Navigation>
+        </DashboardLayout>
     );
 };
 

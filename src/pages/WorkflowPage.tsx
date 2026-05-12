@@ -36,7 +36,6 @@ import {
   Add as AddIcon,
   Close as CloseIcon,
   Search as SearchIcon,
-  Check as CheckIcon,
 } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -52,6 +51,8 @@ import { useWorkflowSocket } from '../hooks/useWorkflowSocket';
 import { format } from 'date-fns';
 import { documentService } from '../services/documentService';
 import { workflowService } from '../services/workflowService';
+import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface WorkflowPageProps {
   initialEditorOpen?: boolean;
@@ -59,6 +60,7 @@ interface WorkflowPageProps {
 
 const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }) => {
   const { user, currentCompany } = useAuth();
+  const { t } = useTranslation();
   const { activeTab, setActiveTab, selectedTaskIds, clearSelection } = useWorkflowStore();
   const {
     useMyTasks,
@@ -116,7 +118,7 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
   const { data: documents, isLoading: documentsLoading } = useCompanyDocuments();
 
   // ✅ Role fetching
-  const { data: roles = [], isLoading: rolesLoading } = useCompanyRoles();
+  const { data: roles = [] } = useCompanyRoles();
 
   // URL params logic
   const { templateId } = useParams<{ templateId: string }>();
@@ -192,7 +194,7 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
     });
   };
 
-  const handleSaveTemplate = (data: any) => {
+  const handleSaveTemplate = (data: any, isAutoSave = false) => {
     const companyId = currentCompany?.companyId || (user as any)?.memberships?.[0]?.companyId || (user as any)?.company?.id || 1;
     if (editingTemplate) {
       updateTemplateMutation.mutate(
@@ -202,15 +204,25 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
         },
         {
           onSuccess: () => {
-            setIsEditorOpen(false);
-            setEditingTemplate(null);
+            if (!isAutoSave) {
+              setIsEditorOpen(false);
+              setEditingTemplate(null);
+            }
           }
         }
       );
     } else {
       createTemplateMutation.mutate(
         { ...data, companyId, allowedRoleLevels: data.allowedRoleLevels || [] },
-        { onSuccess: () => setIsEditorOpen(false) }
+        { 
+          onSuccess: (newTemplate) => {
+            if (!isAutoSave) {
+              setIsEditorOpen(false);
+            } else {
+              setEditingTemplate(newTemplate); // Transition to Edit mode so manual save doesn't duplicate!
+            }
+          }
+        }
       );
     }
   };
@@ -359,7 +371,8 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
   };
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <DashboardLayout title={t('navigation.workflow')}>
+      <Container maxWidth="xl" sx={{ mt: 0, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>Workflow Management</Typography>
         {activeTab === 1 && (
@@ -568,7 +581,8 @@ const WorkflowPage: React.FC<WorkflowPageProps> = ({ initialEditorOpen = false }
       </Dialog>
 
       {tasksLoading && <LoadingSpinner />}
-    </Container>
+      </Container>
+    </DashboardLayout>
   );
 };
 

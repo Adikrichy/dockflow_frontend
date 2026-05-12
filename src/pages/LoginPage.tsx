@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import LoadingSpinner from '../components/LoadingSpinner';
+import AuthLayout from '../components/AuthLayout';
 
 const LoginPage = () => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -34,96 +37,85 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to DocFlow
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Intelligent Document Workflow Automation
-          </p>
+    <AuthLayout 
+      title={t('auth.loginTitle')} 
+      subtitle={t('auth.loginSub')}
+    >
+      <form className="space-y-5" onSubmit={handleSubmit}>
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-[var(--lp-text2)] mb-1.5">
+              {t('auth.email')}
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className="input-field"
+              placeholder="name@company.kz"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-[var(--lp-text2)]">
+                {t('auth.password')}
+              </label>
+              <Link
+                to="/forgot-password"
+                className="text-xs font-semibold text-[var(--lp-accent2)] hover:text-[var(--lp-accent)] transition-colors"
+              >
+                {t('auth.forgotPassword')}
+              </Link>
+            </div>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              className="input-field"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {error}
-            </div>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="lp-btn-primary lp-btn-large w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? (
+            <>
+              <LoadingSpinner size="sm" className="mr-2" />
+              {t('auth.signingIn')}
+            </>
+          ) : (
+            t('auth.signIn')
           )}
+        </button>
 
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="input-field rounded-t-lg border-b-0 focus:z-10"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="input-field rounded-b-lg focus:z-10"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end">
-            <Link
-              to="/forgot-password"
-              className="text-sm font-medium text-blue-600 hover:text-blue-500"
-            >
-              Forgot your password?
-            </Link>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  Signing in...
-                </>
-              ) : (
-                'Sign in'
-              )}
-            </button>
-          </div>
-
-          <div className="text-center">
-            <Link
-              to="/register"
-              className="text-blue-600 hover:text-blue-500 text-sm"
-            >
-              Don't have an account? Sign up
-            </Link>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="text-center pt-2">
+          <Link
+            to="/register"
+            className="text-[var(--lp-text2)] hover:text-[var(--lp-accent2)] text-sm transition-colors"
+          >
+            {t('auth.noAccount')}
+          </Link>
+        </div>
+      </form>
+    </AuthLayout>
   );
 };
 

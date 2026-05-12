@@ -40,8 +40,19 @@ export const reportsService = {
     return response.data;
   },
 
+  async updatePermissions(companyId: number, roleId: number, canView: boolean): Promise<void> {
+    await api.post(`/api/company/${companyId}/roles/${roleId}/permissions`, { canViewReports: canView });
+  },
+
   async getDashboardStats(): Promise<any> {
     const response = await api.get<any>('/reports/dashboard-stats');
+    return response.data;
+  },
+
+  async getAiInsights(companyId: number, timeRange: string): Promise<any> {
+    const response = await api.get<any>('/reports/ai-insights', {
+      params: { companyId, timeRange }
+    });
     return response.data;
   }
 };

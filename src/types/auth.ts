@@ -14,6 +14,7 @@ export interface CompanyMembership {
   roleName: string;
   roleLevel: number;
   preferredEditor?: string;
+  canViewReports?: boolean;
 }
 
 export interface LoginRequest {
@@ -55,6 +56,7 @@ export interface Role {
   name: string;
   level: number;
   isSystem: boolean;
+  canViewReports?: boolean;
 }
 
 export interface CreateCompanyRequest {
@@ -66,6 +68,7 @@ export interface CreateCompanyRequest {
 export interface CreateRoleRequest {
   roleName: string;
   level: number;
+  canViewReports: boolean;
 }
 
 export interface CreateRoleResponse {
@@ -73,4 +76,5 @@ export interface CreateRoleResponse {
   roleName: string;
   level: number;
   isSystem: boolean;
+  canViewReports?: boolean;
 }

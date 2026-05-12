@@ -2,7 +2,13 @@
 import { api } from './api'; // твой axios-instance
 
 export const companyService = {
-  createCompany: async (data: { name: string; description: string; useDefaultRoles: boolean; preferredEditor: string }): Promise<{
+  createCompany: async (data: { 
+    name: string; 
+    description: string; 
+    useDefaultRoles: boolean; 
+    preferredEditor: string;
+    p12Password: string;
+  }): Promise<{
     company: any;
     keyFile: Blob;
   }> => {
@@ -34,21 +40,22 @@ export const companyService = {
     return response.data;
   },
 
-  joinCompany: async (companyId: number): Promise<{
-    keyFile: Blob;
-  }> => {
-    // CRITICAL: Must use responseType: 'blob' for binary p12 files
-    const response = await api.post(`/company/join/${companyId}`, null, {
-      responseType: 'blob'
-    });
-    return {
-      keyFile: response.data
-    };
+  inviteMember: async (companyId: number, data: { email: string; roleId: number; channel: 'EMAIL' | 'TELEGRAM' }) => {
+    const response = await api.post(`/company/${companyId}/invite`, data);
+    return response.data;
   },
 
-  enterCompany: async (companyId: number, keyFile: File) => {
+  acceptInvite: async (data: { token: string; keyPassword: string }): Promise<Blob> => {
+    const response = await api.post('/company/accept-invite', data, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  enterCompany: async (companyId: number, keyFile: File, password: string) => {
     const formData = new FormData();
     formData.append('keyFile', keyFile);
+    formData.append('password', password);
     // Use the synchronized URL
     const response = await api.post(`/company/enter/${companyId}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -70,15 +77,16 @@ export const companyService = {
     return response.data;
   },
 
-  createRole: async (data: { roleName: string; level: number }) => {
+  createRole: async (data: { roleName: string; level: number; canViewReports: boolean }) => {
     const response = await api.post('/company/roles', data);
     return response.data;
   },
 
-  updateRole: async (roleId: number, data: { roleName: string; level: number }) => {
+  updateRole: async (roleId: number, data: { roleName: string; level: number; canViewReports: boolean }) => {
     const payload = {
       roleName: data.roleName,
-      roleLevel: data.level
+      roleLevel: data.level,
+      canViewReports: data.canViewReports
     };
     const response = await api.put(`/company/roles/${roleId}`, payload);
     return response.data;

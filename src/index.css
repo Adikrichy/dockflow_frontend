@@ -1,3 +1,55 @@
+:root {
+  --lp-bg: #f8fafc;
+  --lp-surface: #ffffff;
+  --lp-surface2: #f1f5f9;
+  --lp-surface3: #e2e8f0;
+  --lp-border: #e2e8f0;
+  --lp-accent: #2563eb;
+  --lp-accent2: #3b82f6;
+  --lp-accent-glow: rgba(37, 99, 235, 0.1);
+  --lp-text: #1e293b;
+  --lp-text2: #475569;
+  --lp-text3: #64748b;
+  --lp-white: #0f172a;
+  --lp-green: #10b981;
+  --lp-radius: 14px;
+  --lp-radius-sm: 8px;
+}
+
+.dark,
+.dark-theme {
+  --lp-bg: #0a0c10;
+  --lp-surface: #111318;
+  --lp-surface2: #181c24;
+  --lp-surface3: #242831;
+  --lp-border: #1e2330;
+  --lp-accent: #2f6ef5;
+  --lp-accent2: #4f8fff;
+  --lp-accent-glow: rgba(47, 110, 245, 0.18);
+  --lp-text: #e8eaf0;
+  --lp-text2: #8b92a8;
+  --lp-text3: #555d72;
+  --lp-white: #ffffff;
+  --lp-green: #1fcf7a;
+}
+
+.light,
+.light-theme {
+  --lp-bg: #f8fafc;
+  --lp-surface: #ffffff;
+  --lp-surface2: #f1f5f9;
+  --lp-surface3: #e2e8f0;
+  --lp-border: #e2e8f0;
+  --lp-accent: #2563eb;
+  --lp-accent2: #3b82f6;
+  --lp-accent-glow: rgba(37, 99, 235, 0.1);
+  --lp-text: #1e293b;
+  --lp-text2: #475569;
+  --lp-text3: #64748b;
+  --lp-white: #0f172a;
+  --lp-green: #10b981;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,8 +61,17 @@
   }
 
   body {
-    @apply bg-gray-50 text-gray-900;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-lp-bg text-lp-text;
+    font-family: 'DM Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Hide browser native password reveal button */
+  input::-ms-reveal,
+  input::-ms-clear,
+  input::-webkit-contacts-auto-fill-button,
+  input::-webkit-credentials-auto-fill-button {
+    display: none !important;
   }
 }
 
@@ -28,30 +89,138 @@
   }
 
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply w-full px-4 py-2.5 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--lp-accent)] focus:ring-opacity-50;
+    background: var(--lp-surface2);
+    border: 1px solid var(--lp-border);
+    color: var(--lp-text);
+  }
+
+  .input-field::placeholder {
+    color: var(--lp-text3);
+    opacity: 0.7;
+  }
+
+  .input-field:hover {
+    border-color: var(--lp-accent2);
+    background: var(--lp-surface);
+  }
+
+  .input-field:focus {
+    background: var(--lp-surface);
+    border-color: var(--lp-accent);
+    box-shadow: 0 0 0 4px var(--lp-accent-glow);
   }
 
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+    @apply bg-lp-surface rounded-lg shadow-sm border border-lp-border p-6;
   }
 
-  .status-badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  /* Magic Overrides for Legacy Tailwind Classes in Dark Mode */
+  .dark .bg-white,
+  .dark-theme .bg-white {
+    background: var(--lp-surface) !important;
   }
 
-  .status-pending {
-    @apply bg-yellow-100 text-yellow-800;
+  .dark .bg-gray-50,
+  .dark-theme .bg-gray-50 {
+    background: var(--lp-surface2) !important;
   }
 
-  .status-approved {
-    @apply bg-green-100 text-green-800;
+  .dark .bg-gray-100,
+  .dark-theme .bg-gray-100 {
+    background: var(--lp-surface2) !important;
   }
 
-  .status-rejected {
-    @apply bg-red-100 text-red-800;
+  .dark .bg-gray-200,
+  .dark-theme .bg-gray-200 {
+    background: var(--lp-surface3) !important;
   }
 
-  .status-active {
-    @apply bg-blue-100 text-blue-800;
+  .dark .text-gray-900,
+  .dark-theme .text-gray-900 {
+    color: var(--lp-text) !important;
+  }
+
+  .dark .text-gray-800,
+  .dark-theme .text-gray-800 {
+    color: var(--lp-text) !important;
+  }
+
+  .dark .text-gray-700,
+  .dark-theme .text-gray-700 {
+    color: var(--lp-text2) !important;
+  }
+
+  .dark .text-gray-600,
+  .dark-theme .text-gray-600 {
+    color: var(--lp-text2) !important;
+  }
+
+  .dark .text-gray-500,
+  .dark-theme .text-gray-500 {
+    color: var(--lp-text3) !important;
+  }
+
+  .dark .text-gray-400,
+  .dark-theme .text-gray-400 {
+    color: var(--lp-text3) !important;
+  }
+
+  .dark .border-gray-50,
+  .dark .border-gray-100,
+  .dark .border-gray-200,
+  .dark .border-gray-300,
+  .dark-theme .border-gray-50,
+  .dark-theme .border-gray-100,
+  .dark-theme .border-gray-200,
+  .dark-theme .border-gray-300 {
+    border-color: var(--lp-border) !important;
+  }
+
+  /* Specific fix for Chat/Dashboard background patterns if any */
+  .dark .bg-gray-50\/50,
+  .dark-theme .bg-gray-50\/50 {
+    background: var(--lp-bg) !important;
+  }
+
+  /* Light color patterns (Alerts, Badges) */
+  .dark .bg-blue-50,
+  .dark-theme .bg-blue-50 {
+    background: rgba(59, 130, 246, 0.1) !important;
+  }
+
+  .dark .text-blue-600,
+  .dark-theme .text-blue-600 {
+    color: #60a5fa !important;
+  }
+
+  .dark .bg-purple-50,
+  .dark-theme .bg-purple-50 {
+    background: rgba(168, 85, 247, 0.1) !important;
+  }
+
+  .dark .text-purple-600,
+  .dark-theme .text-purple-600 {
+    color: #a78bfa !important;
+  }
+
+  .dark .bg-red-50,
+  .dark-theme .bg-red-50 {
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+
+  .dark .text-red-600,
+  .dark-theme .text-red-600 {
+    color: #f87171 !important;
+  }
+
+  .dark .bg-green-50,
+  .dark-theme .bg-green-50 {
+    background: rgba(34, 197, 94, 0.1) !important;
+  }
+
+  .dark .text-green-600,
+  .dark-theme .text-green-600 {
+    color: #4ade80 !important;
   }
 }

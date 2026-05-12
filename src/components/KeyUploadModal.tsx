@@ -5,7 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 interface KeyUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (keyFile: File) => Promise<void>;
+  onSubmit: (keyFile: File, password: string) => Promise<void>;
   companyName: string;
   isLoading?: boolean;
 }
@@ -18,6 +18,7 @@ const KeyUploadModal: React.FC<KeyUploadModalProps> = ({
   isLoading = false,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string>('');
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,18 +43,25 @@ const KeyUploadModal: React.FC<KeyUploadModalProps> = ({
       return;
     }
 
+    if (!password) {
+      setError('Please enter the password for your key file');
+      return;
+    }
+
     try {
-      await onSubmit(selectedFile);
+      await onSubmit(selectedFile, password);
       setSelectedFile(null);
+      setPassword('');
       setError('');
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to enter company. Please check your key file.');
+      setError(err.response?.data?.message || err.message || 'Failed to enter company. Please check your key file and password.');
     }
   };
 
   const handleClose = () => {
     setSelectedFile(null);
+    setPassword('');
     setError('');
     onClose();
   };
@@ -92,6 +100,21 @@ const KeyUploadModal: React.FC<KeyUploadModalProps> = ({
           </p>
         </div>
 
+        <div>
+          <label htmlFor="keyPassword" className="block text-sm font-medium text-gray-700 mb-2">
+            Key Password
+          </label>
+          <input
+            type="password"
+            id="keyPassword"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter password for your key"
+            className="input-field"
+            required
+          />
+        </div>
+
         {selectedFile && (
           <div className="bg-green-50 border border-green-200 rounded p-3">
             <p className="text-sm text-green-800">
@@ -103,7 +126,7 @@ const KeyUploadModal: React.FC<KeyUploadModalProps> = ({
         <div className="flex justify-end space-x-4">
           <button
             onClick={handleSubmit}
-            disabled={!selectedFile || isLoading}
+            disabled={!selectedFile || !password || isLoading}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
             {isLoading ? (

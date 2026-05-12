@@ -69,7 +69,7 @@ interface WorkflowEditorProps {
     initialDescription?: string;
     initialXml?: string;
     initialAllowedRoleLevels?: number[];
-    onSave: (data: { name: string; description: string; stepsXml: string; allowedRoleLevels: number[] }) => void;
+    onSave: (data: { name: string; description: string; stepsXml: string; allowedRoleLevels: number[] }, isAutoSave?: boolean) => void;
     isLoading?: boolean;
 }
 
@@ -87,6 +87,13 @@ const WorkflowEditor = ({
     const [xml, setXml] = useState(initialXml || `<workflow>\n  <step order="1" roleName="Manager" roleLevel="60" action="approve"/>\n</workflow>`);
     const [roles, setRoles] = useState<Array<{ id: number, name: string, level: number }>>([]);
     const [rolesLoading, setRolesLoading] = useState(true);
+
+    // Sync external XML changes (like WebSocket updates to the template)
+    useEffect(() => {
+        if (initialXml && initialXml !== xml) {
+            setXml(initialXml);
+        }
+    }, [initialXml]);
 
     // Ensure 100 is always there
     const [allowedStartLevels, setAllowedStartLevels] = useState<number[]>(() => {
@@ -115,8 +122,19 @@ const WorkflowEditor = ({
     // Parsing XML to React Flow
     const parseXmlToFlow = useCallback((content: string) => {
         try {
+            // Sanitize unescaped < and > inside condition="..." and description="..." attributes
+            // This prevents DOMParser from silently failing when AI generates something like condition="amount < 1000"
+            let safeContent = content;
+            safeContent = safeContent.replace(/(condition|description)="([^"]*)"/g, (match, attrName, attrValue) => {
+                const escapedValue = attrValue
+                    .replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;') // Escape stray & first
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                return `${attrName}="${escapedValue}"`;
+            });
+
             const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(content, 'text/xml');
+            const xmlDoc = parser.parseFromString(safeContent, 'text/xml');
             const stepElements = xmlDoc.getElementsByTagName('step');
             const onApproveElements = xmlDoc.getElementsByTagName('onApprove');
             const onRejectElements = xmlDoc.getElementsByTagName('onReject');
@@ -219,13 +237,23 @@ const WorkflowEditor = ({
 
         let newXml = '<workflow>\n';
 
+        const escapeXmlAttr = (str: string) => {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        };
+
         // 1. Generate steps
         sortedNodes.forEach((node) => {
             const data = node.data as any;
             const parallelStr = data.parallel ? ' parallel="true"' : '';
-            const descriptionStr = data.description ? ` description="${data.description.replace(/"/g, '&quot;')}"` : '';
-            const allowedActionsStr = data.allowedActions && data.allowedActions.length > 0 ? ` allowedActions="${data.allowedActions.join(',')}"` : '';
-            newXml += `  <step order="${data.stepOrder}" roleName="${data.roleName}" roleLevel="${data.roleLevel}" action="${data.action}"${parallelStr}${descriptionStr}${allowedActionsStr}/>\n`;
+            const descriptionStr = data.description ? ` description="${escapeXmlAttr(data.description)}"` : '';
+            const allowedActionsStr = data.allowedActions && data.allowedActions.length > 0 ? ` allowedActions="${escapeXmlAttr(data.allowedActions.join(','))}"` : '';
+            newXml += `  <step order="${data.stepOrder}" roleName="${escapeXmlAttr(data.roleName)}" roleLevel="${data.roleLevel}" action="${escapeXmlAttr(data.action)}"${parallelStr}${descriptionStr}${allowedActionsStr}/>\n`;
         });
 
         newXml += '\n';
@@ -243,7 +271,7 @@ const WorkflowEditor = ({
                 if (type === 'reject') tagType = 'onReject';
                 if (type === 'timeout') tagType = 'onTimeout';
 
-                const condition = (edge.data as any)?.condition ? ` condition="${(edge.data as any).condition}"` : '';
+                const condition = (edge.data as any)?.condition ? ` condition="${escapeXmlAttr((edge.data as any).condition)}"` : '';
 
                 newXml += `  <${tagType} stepOrder="${sourceOrder}" targetStep="${targetOrder}"${condition}/>\n`;
             }
@@ -289,6 +317,13 @@ const WorkflowEditor = ({
                         parseXmlToFlow(data.xml);
                         setIsAiDialogOpen(false);
                         setAiPrompt('');
+                        // Auto-save so the database is updated and next Edit open shows correct XML
+                        onSave({
+                            name,
+                            description,
+                            stepsXml: data.xml,
+                            allowedRoleLevels: allowedStartLevels,
+                        }, true);
                     } catch (err) {
                         console.error('[WorkflowEditor] Error applying AI XML:', err);
                         alert('Error applying AI suggestion: ' + (err instanceof Error ? err.message : String(err)));
